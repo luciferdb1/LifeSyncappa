@@ -1,0 +1,136 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information and role (admin, editor, user)",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "editor", "user"] },
+        "uid": { "type": "string" },
+        "points": { "type": "number" },
+        "donorsAdded": { "type": "number" },
+        "pointsFromAdding": { "type": "number" },
+        "pointsFromOwnDonors": { "type": "number" },
+        "pointsFromOtherDonors": { "type": "number" },
+        "pointsFromConvinced": { "type": "number" }
+      },
+      "required": ["email", "displayName", "role", "uid"]
+    },
+    "Donor": {
+      "title": "Donor",
+      "description": "Blood donor information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "bloodGroup": { "type": "string" },
+        "lastDonationDate": { "type": "string" },
+        "totalDonations": { "type": "number" },
+        "location": { "type": "string" },
+        "isAvailable": { "type": "boolean" },
+        "uid": { "type": "string" },
+        "agreedToDonate": { "type": "boolean" },
+        "convincedByUid": { "type": "string" },
+        "convincedByName": { "type": "string" },
+        "lastRefusalReason": { "type": "string" },
+        "lastRefusalDate": { "type": "string" },
+        "followUp3DayStatus": { "type": "string", "enum": ["pending", "completed", "failed"] },
+        "followUp3DayNextReminder": { "type": "string" },
+        "followUp7DayStatus": { "type": "string", "enum": ["pending", "completed", "failed"] },
+        "followUp7DayNextReminder": { "type": "string" },
+        "addedBy": { "type": "string" }
+      },
+      "required": ["name", "phone", "bloodGroup", "lastDonationDate", "totalDonations", "location", "isAvailable"]
+    },
+    "Request": {
+      "title": "Request",
+      "description": "Edit or delete requests for donor information",
+      "type": "object",
+      "properties": {
+        "donorId": { "type": "string" },
+        "donorName": { "type": "string" },
+        "type": { "type": "string", "enum": ["edit", "delete"] },
+        "details": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "userEmail": { "type": "string" },
+        "userUid": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["donorId", "donorName", "type", "details", "status", "userEmail", "userUid", "createdAt"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Log of donor-related activities like calls or updates",
+      "type": "object",
+      "properties": {
+        "donorId": { "type": "string" },
+        "donorName": { "type": "string" },
+        "action": { "type": "string", "enum": ["call", "update", "delete", "create"] },
+        "userEmail": { "type": "string" },
+        "userUid": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["donorId", "action", "userEmail", "userUid", "timestamp"]
+    },
+    "CallRecord": {
+      "title": "CallRecord",
+      "description": "Log of recorded SIP calls",
+      "type": "object",
+      "properties": {
+        "callerUid": { "type": "string" },
+        "callerName": { "type": "string" },
+        "donorPhone": { "type": "string" },
+        "donorName": { "type": "string" },
+        "audioUrl": { "type": "string" },
+        "storagePath": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "duration": { "type": "number" }
+      },
+      "required": ["callerUid", "callerName", "donorPhone", "donorName", "audioUrl", "storagePath", "timestamp", "duration"]
+    },
+    "FacebookRequest": {
+      "title": "FacebookRequest",
+      "description": "Blood requests received from Facebook Page",
+      "type": "object",
+      "properties": {
+        "facebookId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "message": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "status": { "type": "string", "enum": ["new", "processing", "completed"] },
+        "payload": { "type": "string" }
+      },
+      "required": ["facebookId", "senderName", "timestamp", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles collection"
+    },
+    "/donors/{donorId}": {
+      "schema": "Donor",
+      "description": "Donors collection"
+    },
+    "/requests/{requestId}": {
+      "schema": "Request",
+      "description": "Edit/delete requests collection"
+    },
+    "/logs/{logId}": {
+      "schema": "ActivityLog",
+      "description": "Activity logs collection"
+    },
+    "/callRecords/{recordId}": {
+      "schema": "CallRecord",
+      "description": "Call records collection"
+    },
+    "/facebookRequests/{requestId}": {
+      "schema": "FacebookRequest",
+      "description": "Facebook blood requests collection"
+    }
+  }
+}

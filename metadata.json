@@ -1,0 +1,7 @@
+{
+  "name": "LifeSync",
+  "description": "A blood donation management system allowing users to find donors by blood group and admins to manage donor records.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

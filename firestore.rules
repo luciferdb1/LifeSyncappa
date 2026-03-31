@@ -1,0 +1,308 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - email: string (required)
+    //   - displayName: string (required)
+    //   - role: string (required, 'admin', 'editor', or 'user')
+    //   - uid: string (required)
+    //   - points: number (optional)
+    //   - donorsAdded: number (optional)
+    //   - pointsFromAdding: number (optional)
+    //   - pointsFromOwnDonors: number (optional)
+    //   - pointsFromOtherDonors: number (optional)
+    //   - pointsFromConvinced: number (optional)
+    //
+    // Collection: donors
+    // Document ID: {donorId}
+    // Fields:
+    //   - name: string (required)
+    //   - phone: string (required)
+    //   - bloodGroup: string (required)
+    //   - lastDonationDate: string (required)
+    //   - totalDonations: number (required)
+    //   - location: string (required)
+    //   - isAvailable: boolean (required)
+    //   - uid: string (optional, creator's uid)
+    //   - agreedToDonate: boolean (optional)
+    //   - convincedByUid: string (optional)
+    //   - convincedByName: string (optional)
+    //   - lastRefusalReason: string (optional)
+    //   - lastRefusalDate: string (optional)
+    //
+    // Collection: requests
+    // Document ID: {requestId}
+    // Fields:
+    //   - donorId: string (required)
+    //   - donorName: string (required)
+    //   - type: string (required, 'edit' or 'delete')
+    //   - details: string (required)
+    //   - status: string (required, 'pending', 'approved', 'rejected')
+    //   - userEmail: string (required)
+    //   - userUid: string (required)
+    //   - createdAt: string (required)
+    //
+    // Collection: logs
+    // Document ID: {logId}
+    // Fields:
+    //   - donorId: string (required)
+    //   - donorName: string (optional)
+    //   - action: string (required, 'call', 'update', 'delete', 'create')
+    //   - userEmail: string (required)
+    //   - userUid: string (required)
+    //   - timestamp: string (required)
+    //   - details: string (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+         (request.auth.token.email != null && 
+          request.auth.token.email.lower() == "debashisbarmandb1@gmail.com" && 
+          request.auth.token.email_verified == true));
+    }
+
+    function isEditor() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'editor';
+    }
+
+    function isAtLeastEditor() {
+      return isAdmin() || isEditor();
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.size() < 100 && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUser(data, userId) {
+      return data.keys().hasAll(['email', 'displayName', 'role', 'uid']) &&
+             hasOnlyAllowedFields(['email', 'displayName', 'role', 'uid', 'points', 'donorsAdded', 'pointsFromAdding', 'pointsFromOwnDonors', 'pointsFromOtherDonors', 'pointsFromConvinced', 'phone']) &&
+             data.email is string && isValidEmail(data.email) &&
+             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
+             data.role in ['admin', 'editor', 'user'] &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() >= 10 && data.phone.size() <= 15)) &&
+             (!('points' in data) || (data.points is number && data.points >= 0)) &&
+             (!('donorsAdded' in data) || (data.donorsAdded is number && data.donorsAdded >= 0)) &&
+             (!('pointsFromAdding' in data) || (data.pointsFromAdding is number && data.pointsFromAdding >= 0)) &&
+             (!('pointsFromOwnDonors' in data) || (data.pointsFromOwnDonors is number && data.pointsFromOwnDonors >= 0)) &&
+             (!('pointsFromOtherDonors' in data) || (data.pointsFromOtherDonors is number && data.pointsFromOtherDonors >= 0)) &&
+             (!('pointsFromConvinced' in data) || (data.pointsFromConvinced is number && data.pointsFromConvinced >= 0)) &&
+             data.uid == userId;
+    }
+
+    function isValidDonor(data) {
+      return data.keys().hasAll(['name', 'phone', 'bloodGroup', 'lastDonationDate', 'totalDonations', 'location', 'isAvailable']) &&
+             hasOnlyAllowedFields(['name', 'phone', 'bloodGroup', 'lastDonationDate', 'totalDonations', 'location', 'isAvailable', 'uid', 'addedBy', 'agreedToDonate', 'convincedByUid', 'convincedByName', 'lastRefusalReason', 'lastRefusalDate', 'followUp3DayStatus', 'followUp3DayNextReminder', 'followUp7DayStatus', 'followUp7DayNextReminder']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.phone is string && data.phone.size() >= 10 && data.phone.size() <= 15 &&
+             data.bloodGroup is string && data.bloodGroup.size() > 0 && data.bloodGroup.size() < 10 &&
+             data.lastDonationDate is string && data.lastDonationDate.size() >= 0 && data.lastDonationDate.size() < 50 &&
+             data.totalDonations is number && data.totalDonations >= 0 &&
+             data.location is string && data.location.size() > 0 && data.location.size() < 200 &&
+             data.isAvailable is bool &&
+             (!('uid' in data) || (data.uid is string && data.uid.size() < 100)) &&
+             (!('addedBy' in data) || (data.addedBy is string && data.addedBy.size() < 100)) &&
+             (!('agreedToDonate' in data) || data.agreedToDonate is bool) &&
+             (!('convincedByUid' in data) || (data.convincedByUid is string && data.convincedByUid.size() < 100)) &&
+             (!('convincedByName' in data) || (data.convincedByName is string && data.convincedByName.size() < 100)) &&
+             (!('lastRefusalReason' in data) || (data.lastRefusalReason is string && data.lastRefusalReason.size() < 500)) &&
+             (!('lastRefusalDate' in data) || (data.lastRefusalDate is string && data.lastRefusalDate.size() < 50)) &&
+             (!('followUp3DayStatus' in data) || (data.followUp3DayStatus in ['pending', 'completed', 'failed'])) &&
+             (!('followUp3DayNextReminder' in data) || (data.followUp3DayNextReminder is string && data.followUp3DayNextReminder.size() < 100)) &&
+             (!('followUp7DayStatus' in data) || (data.followUp7DayStatus in ['pending', 'completed', 'failed'])) &&
+             (!('followUp7DayNextReminder' in data) || (data.followUp7DayNextReminder is string && data.followUp7DayNextReminder.size() < 100));
+    }
+
+    function isValidRequest(data) {
+      return data.keys().hasAll(['donorId', 'donorName', 'type', 'details', 'status', 'userEmail', 'userUid', 'createdAt']) &&
+             hasOnlyAllowedFields(['donorId', 'donorName', 'type', 'details', 'status', 'userEmail', 'userUid', 'createdAt']) &&
+             data.donorId is string && data.donorId.size() < 100 &&
+             data.donorName is string && data.donorName.size() < 100 &&
+             data.type in ['edit', 'delete'] &&
+             data.details is string && data.details.size() > 0 && data.details.size() < 1000 &&
+             data.status == 'pending' &&
+             data.userEmail is string && isValidEmail(data.userEmail) &&
+             data.userUid is string && data.userUid.size() < 100 &&
+             data.createdAt is string && data.createdAt.size() < 50;
+    }
+
+    function isValidLog(data) {
+      return data.keys().hasAll(['donorId', 'action', 'userEmail', 'userUid', 'timestamp']) &&
+             hasOnlyAllowedFields(['donorId', 'donorName', 'action', 'userEmail', 'userUid', 'timestamp', 'details']) &&
+             data.donorId is string && data.donorId.size() < 100 &&
+             data.action in ['call', 'update', 'delete', 'create'] &&
+             data.userEmail is string && isValidEmail(data.userEmail) &&
+             data.userUid == request.auth.uid &&
+             data.timestamp is string && data.timestamp.size() < 50 &&
+             (!('donorName' in data) || (data.donorName is string && data.donorName.size() < 100)) &&
+             (!('details' in data) || (data.details is string && data.details.size() < 1000));
+    }
+
+    function isDonationUpdate() {
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return affectedKeys.hasOnly(['lastDonationDate', 'totalDonations', 'isAvailable']) &&
+             request.resource.data.totalDonations == resource.data.totalDonations + 1 &&
+             request.resource.data.lastDonationDate is string &&
+             request.resource.data.lastDonationDate.size() < 50 &&
+             request.resource.data.isAvailable == false;
+    }
+
+    function isPointUpdate() {
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let currentPoints = ('points' in resource.data) ? resource.data.points : 0;
+      let currentDonorsAdded = ('donorsAdded' in resource.data) ? resource.data.donorsAdded : 0;
+      let currentPointsFromAdding = ('pointsFromAdding' in resource.data) ? resource.data.pointsFromAdding : 0;
+      let currentPointsFromOwnDonors = ('pointsFromOwnDonors' in resource.data) ? resource.data.pointsFromOwnDonors : 0;
+      let currentPointsFromOtherDonors = ('pointsFromOtherDonors' in resource.data) ? resource.data.pointsFromOtherDonors : 0;
+      let currentPointsFromConvinced = ('pointsFromConvinced' in resource.data) ? resource.data.pointsFromConvinced : 0;
+      
+      // 20 points for adding a donor
+      let isAddingDonor = affectedKeys.hasOnly(['points', 'donorsAdded', 'pointsFromAdding']) && 
+                          request.resource.data.points == currentPoints + 20 && 
+                          request.resource.data.donorsAdded == currentDonorsAdded + 1 &&
+                          request.resource.data.pointsFromAdding == currentPointsFromAdding + 20;
+      
+      // 10 points for own donor donation
+      let isOwnDonorDonation = affectedKeys.hasOnly(['points', 'pointsFromOwnDonors']) && 
+                               request.resource.data.points == currentPoints + 10 &&
+                               request.resource.data.pointsFromOwnDonors == currentPointsFromOwnDonors + 10;
+                               
+      // 5 points for other donor donation
+      let isOtherDonorDonation = affectedKeys.hasOnly(['points', 'pointsFromOtherDonors']) && 
+                                 request.resource.data.points == currentPoints + 5 &&
+                                 request.resource.data.pointsFromOtherDonors == currentPointsFromOtherDonors + 5;
+                                 
+      // 5 points for convincing via call
+      let isConvincingViaCall = affectedKeys.hasOnly(['points', 'pointsFromConvinced']) && 
+                                request.resource.data.points == currentPoints + 5 &&
+                                request.resource.data.pointsFromConvinced == currentPointsFromConvinced + 5;
+      
+      return isAddingDonor || isOwnDonorDonation || isOtherDonorDonation || isConvincingViaCall;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    function isValidCallRecord(data) {
+      return data.keys().hasAll(['callerUid', 'callerName', 'donorPhone', 'donorName', 'audioUrl', 'storagePath', 'timestamp', 'duration']) &&
+             data.callerUid is string && data.callerUid == request.auth.uid &&
+             data.callerName is string && data.callerName.size() > 0 && data.callerName.size() < 100 &&
+             data.donorPhone is string && data.donorPhone.size() > 0 && data.donorPhone.size() < 20 &&
+             data.donorName is string && data.donorName.size() > 0 && data.donorName.size() < 100 &&
+             data.audioUrl is string && data.audioUrl.size() > 0 && data.audioUrl.size() < 1000 &&
+             data.storagePath is string && data.storagePath.size() > 0 && data.storagePath.size() < 500 &&
+             data.timestamp is string && data.timestamp.size() > 0 && data.timestamp.size() < 50 &&
+             data.duration is number && data.duration >= 0;
+    }
+
+    match /callRecords/{recordId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isValidCallRecord(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAtLeastEditor();
+      allow create: if (isOwner(userId) && isValidUser(request.resource.data, userId) && request.resource.data.role == 'user') || 
+                     (isAdmin() && isValidUser(request.resource.data, userId));
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data, userId) && request.resource.data.role == resource.data.role && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['points'])) || 
+                     (isAdmin() && isValidUser(request.resource.data, userId)) || 
+                     (isAuthenticated() && isPointUpdate());
+      allow delete: if isAdmin();
+    }
+
+    function isConvinceUpdate() {
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return isAtLeastEditor() && 
+             affectedKeys.hasOnly(['agreedToDonate', 'convincedByUid', 'convincedByName']) &&
+             request.resource.data.agreedToDonate == true &&
+             request.resource.data.convincedByUid == request.auth.uid;
+    }
+
+    function isRefusalUpdate() {
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return isAtLeastEditor() && 
+             affectedKeys.hasOnly(['lastRefusalReason', 'lastRefusalDate']) &&
+             request.resource.data.lastRefusalReason is string &&
+             request.resource.data.lastRefusalDate is string;
+    }
+
+    match /donors/{donorId} {
+      allow read: if isAuthenticated(); 
+      allow create: if isAuthenticated() && isValidDonor(request.resource.data);
+      allow update: if isAdmin() || (isAuthenticated() && (isDonationUpdate() || isConvinceUpdate() || isRefusalUpdate()));
+      allow delete: if isAdmin();
+    }
+
+    match /requests/{requestId} {
+      allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.userUid);
+      allow create: if isAuthenticated() && isValidRequest(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /logs/{logId} {
+      allow read: if isAtLeastEditor();
+      allow create: if isAuthenticated() && isValidLog(request.resource.data);
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    function isValidFacebookRequest(data) {
+      return data.keys().hasAll(['facebookId', 'senderName', 'timestamp', 'status']) &&
+             hasOnlyAllowedFields(['facebookId', 'senderName', 'message', 'timestamp', 'status', 'payload']) &&
+             data.facebookId is string &&
+             data.senderName is string &&
+             data.timestamp is string &&
+             data.status in ['new', 'processing', 'completed'] &&
+             (!('message' in data) || data.message is string) &&
+             (!('payload' in data) || data.payload is string);
+    }
+
+    match /facebookRequests/{requestId} {
+      allow read: if isAdmin();
+      allow create: if false; // Only server-side via Admin SDK
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isAtLeastEditor();
+      allow write: if isAdmin();
+    }
+
+    match /webhookRawLogs/{logId} {
+      allow read: if true; // Allow reading for debugging (can be restricted later)
+      allow create: if true; // Allow logging from any source (server-side or client-side)
+      allow update, delete: if isAdmin();
+    }
+  }
+}

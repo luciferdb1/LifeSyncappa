@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+@theme {
+  --font-hind: "Hind Siliguri", sans-serif;
+}
+
+@variant dark (&:where(.dark, .dark *));
+
+body {
+  font-family: var(--font-hind);
+  background-color: #f8fafc;
+  color: #0f172a;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.dark body {
+  background-color: #020617;
+  color: #f8fafc;
+}
+
+.font-hind {
+  font-family: var(--font-hind);
+}
+
+/* Custom styles for the app */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.shishir-gradient {
+  background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
+}
+
+.blood-drop-shadow {
+  filter: drop-shadow(0 4px 6px rgba(220, 38, 38, 0.2));
+}
