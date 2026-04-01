@@ -116,8 +116,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[70] p-4">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-4xl h-[80vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-200 dark:border-slate-800 transition-colors duration-300">
+    <div className="fixed inset-0 bg-white dark:bg-slate-900 flex flex-col z-[70] overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 w-full h-full flex flex-col overflow-hidden animate-in fade-in duration-300 transition-colors duration-300">
         <div className="bg-emerald-900 dark:bg-slate-950 p-6 text-white flex justify-between items-center transition-colors duration-300">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <Shield size={20} />
@@ -137,7 +137,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onClose }) => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+        <div className="flex-1 overflow-y-auto p-6 bg-slate-50 dark:bg-slate-900 transition-colors duration-300 pb-32">
           {showAddUser ? (
             <div className="max-w-md mx-auto bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 animate-in slide-in-from-bottom-4 duration-300 transition-colors duration-300">
               <div className="text-center mb-6">
@@ -212,97 +212,99 @@ const UserManagement: React.FC<UserManagementProps> = ({ onClose }) => {
               </div>
             ) : (
               <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden transition-colors duration-300">
-                <table className="w-full text-left border-collapse">
-                  <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-slate-950 border-b border-gray-100 dark:border-slate-800 shadow-sm transition-colors duration-300">
-                    <tr className="text-gray-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
-                      <th className="p-4">ব্যবহারকারী</th>
-                      <th className="p-4 text-center">ভূমিকা</th>
-                      <th className="p-4 text-center">অ্যাকশন</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-                    {users.map((user, index) => (
-                      <tr key={user.uid} className={`hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors ${index % 2 === 0 ? 'bg-white dark:bg-slate-800' : 'bg-gray-50/50 dark:bg-slate-900/50'}`}>
-                        <td className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="bg-emerald-100 dark:bg-emerald-900/20 p-2 rounded-full text-emerald-600 dark:text-emerald-400 shrink-0">
-                              <User size={20} />
-                            </div>
-                            <div>
-                              <h3 className="font-bold text-gray-800 dark:text-slate-200">{user.displayName}</h3>
-                              <p className="text-xs text-gray-500 dark:text-slate-500">{user.email}</p>
-                              {user.points !== undefined && (
-                                <div className="flex items-center gap-1 mt-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full w-fit border border-amber-100 dark:border-amber-900/30">
-                                  <Award size={12} />
-                                  <span>{user.points} পয়েন্ট</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-4 align-middle">
-                          <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                            {(['admin', 'editor', 'user'] as const).map((role) => (
-                              <button
-                                key={role}
-                                disabled={updatingId === user.uid || user.role === role}
-                                onClick={() => handleRoleChange(user.uid, role)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                  user.role === role 
-                                    ? 'bg-emerald-600 text-white cursor-default shadow-sm' 
-                                    : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700'
-                                } disabled:opacity-50`}
-                              >
-                                {updatingId === user.uid && user.role !== role ? (
-                                  <Loader2 className="animate-spin mx-auto" size={14} />
-                                ) : (
-                                  role === 'admin' ? 'অ্যাডমিন' : role === 'editor' ? 'এডিটর' : 'সদস্য'
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="p-4 align-middle text-center">
-                          {user.email !== 'debashisbarmandb1@gmail.com' && (
-                            <div className="relative inline-block">
-                              <button
-                                onClick={() => setShowDeleteConfirm(user.uid)}
-                                className="p-2 text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
-                                title="ব্যবহারকারী মুছুন"
-                              >
-                                <Trash2 size={18} />
-                              </button>
-                              
-                              {showDeleteConfirm === user.uid && (
-                                <div className="absolute right-0 top-full mt-2 w-64 p-3 bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900/30 rounded-xl shadow-xl z-20 animate-in fade-in slide-in-from-top-2 duration-200 transition-colors duration-300">
-                                  <div className="flex items-start gap-2 text-red-700 dark:text-red-400 mb-3 text-left">
-                                    <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                                    <p className="text-xs font-bold">আপনি কি নিশ্চিতভাবে এই ব্যবহারকারীকে মুছতে চান?</p>
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => handleDeleteUser(user.uid)}
-                                      disabled={deletingId === user.uid}
-                                      className="flex-1 bg-red-600 hover:bg-red-700 text-white py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-1"
-                                    >
-                                      {deletingId === user.uid ? <Loader2 size={12} className="animate-spin" /> : 'হ্যাঁ, মুছুন'}
-                                    </button>
-                                    <button
-                                      onClick={() => setShowDeleteConfirm(null)}
-                                      className="flex-1 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 dark:hover:bg-slate-600 transition-all"
-                                    >
-                                      না
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[800px]">
+                    <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-slate-950 border-b border-gray-100 dark:border-slate-800 shadow-sm transition-colors duration-300">
+                      <tr className="text-gray-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
+                        <th className="p-4">ব্যবহারকারী</th>
+                        <th className="p-4 text-center">ভূমিকা</th>
+                        <th className="p-4 text-center">অ্যাকশন</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+                      {users.map((user, index) => (
+                        <tr key={user.uid} className={`hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors ${index % 2 === 0 ? 'bg-white dark:bg-slate-800' : 'bg-gray-50/50 dark:bg-slate-900/50'}`}>
+                          <td className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="bg-emerald-100 dark:bg-emerald-900/20 p-2 rounded-full text-emerald-600 dark:text-emerald-400 shrink-0">
+                                <User size={20} />
+                              </div>
+                              <div>
+                                <h3 className="font-bold text-gray-800 dark:text-slate-200">{user.displayName}</h3>
+                                <p className="text-xs text-gray-500 dark:text-slate-500">{user.email}</p>
+                                {user.points !== undefined && (
+                                  <div className="flex items-center gap-1 mt-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full w-fit border border-amber-100 dark:border-amber-900/30">
+                                    <Award size={12} />
+                                    <span>{user.points} পয়েন্ট</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 align-middle">
+                            <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                              {(['admin', 'editor', 'user'] as const).map((role) => (
+                                <button
+                                  key={role}
+                                  disabled={updatingId === user.uid || user.role === role}
+                                  onClick={() => handleRoleChange(user.uid, role)}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    user.role === role 
+                                      ? 'bg-emerald-600 text-white cursor-default shadow-sm' 
+                                      : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700'
+                                  } disabled:opacity-50`}
+                                >
+                                  {updatingId === user.uid && user.role !== role ? (
+                                    <Loader2 className="animate-spin mx-auto" size={14} />
+                                  ) : (
+                                    role === 'admin' ? 'অ্যাডমিন' : role === 'editor' ? 'এডিটর' : 'সদস্য'
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="p-4 align-middle text-center">
+                            {user.email !== 'debashisbarmandb1@gmail.com' && (
+                              <div className="relative inline-block">
+                                <button
+                                  onClick={() => setShowDeleteConfirm(user.uid)}
+                                  className="p-2 text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
+                                  title="ব্যবহারকারী মুছুন"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                                
+                                {showDeleteConfirm === user.uid && (
+                                  <div className="absolute right-0 top-full mt-2 w-64 p-3 bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900/30 rounded-xl shadow-xl z-20 animate-in fade-in slide-in-from-top-2 duration-200 transition-colors duration-300">
+                                    <div className="flex items-start gap-2 text-red-700 dark:text-red-400 mb-3 text-left">
+                                      <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                                      <p className="text-xs font-bold">আপনি কি নিশ্চিতভাবে এই ব্যবহারকারীকে মুছতে চান?</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => handleDeleteUser(user.uid)}
+                                        disabled={deletingId === user.uid}
+                                        className="flex-1 bg-red-600 hover:bg-red-700 text-white py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-1"
+                                      >
+                                        {deletingId === user.uid ? <Loader2 size={12} className="animate-spin" /> : 'হ্যাঁ, মুছুন'}
+                                      </button>
+                                      <button
+                                        onClick={() => setShowDeleteConfirm(null)}
+                                        className="flex-1 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 dark:hover:bg-slate-600 transition-all"
+                                      >
+                                        না
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )
           )}

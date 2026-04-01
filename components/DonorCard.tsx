@@ -73,21 +73,28 @@ const DonorCard: React.FC<DonorCardProps> = ({ donor, onNameClick, onEdit, canEd
   return (
     <motion.div 
       layout
-      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+      initial={{ opacity: 0, y: 20, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       whileHover={{ 
-        y: -4, 
-        boxShadow: "0 12px 24px -8px rgba(5, 150, 105, 0.15)"
+        y: -8, 
+        scale: 1.02,
+        boxShadow: "0 20px 40px -12px rgba(5, 150, 105, 0.2)"
       }}
-      transition={{ type: 'spring', damping: 25, stiffness: 500 }}
-      className={`group bg-white dark:bg-slate-900 rounded-[2rem] shadow-sm transition-all duration-300 ease-out overflow-hidden border border-emerald-100 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-600 flex flex-col h-full ${!isDonorAvailable ? 'opacity-80 grayscale-[0.3]' : ''}`}
+      transition={{ type: 'spring', damping: 20, stiffness: 400 }}
+      className={`group relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2.5rem] p-6 transition-all duration-500 ease-out border border-emerald-100/50 dark:border-slate-800/50 hover:border-emerald-400 dark:hover:border-emerald-600 flex flex-col h-full ${!isDonorAvailable ? 'opacity-70 grayscale-[0.5]' : ''} soft-shadow`}
     >
-      <div className={`relative h-1.5 transition-colors duration-500 ${isEligible ? 'bg-gradient-to-r from-emerald-600 to-green-400' : 'bg-gray-200 dark:bg-slate-800'}`}></div>
-      
-      <div className="p-4 flex-1">
-          <div className="flex justify-between items-start mb-3">
-            <div className="flex-1 min-w-0 pr-2">
-              <div className="flex items-center flex-wrap gap-2 mb-1">
+      {/* Status Indicator Dot */}
+      <div className="absolute top-6 right-6">
+        <div className={`w-3 h-3 rounded-full ${isEligible ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.6)] animate-pulse' : 'bg-slate-300 dark:bg-slate-700'}`} />
+      </div>
+
+      <div className="flex-1">
+          <div className="flex flex-col gap-4 mb-6">
+            <div className="flex items-center gap-4">
+              <div className={`flex items-center justify-center w-16 h-16 rounded-2xl shadow-inner transition-all duration-500 border-2 ${isEligible ? 'bg-red-50 dark:bg-red-950/30 text-red-600 border-red-100 dark:border-red-900/30' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-100 dark:border-slate-700'}`}>
+                  <span className="font-black text-2xl font-outfit">{donor.bloodGroup}</span>
+              </div>
+              <div className="flex-1 min-w-0">
                 <h3 
                   onClick={() => {
                     if (canEdit && onEdit) {
@@ -96,102 +103,58 @@ const DonorCard: React.FC<DonorCardProps> = ({ donor, onNameClick, onEdit, canEd
                       onNameClick?.(donor);
                     }
                   }}
-                  className="text-lg font-bold text-emerald-950 dark:text-emerald-50 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors cursor-pointer hover:underline truncate max-w-full"
+                  className="text-xl font-black text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors cursor-pointer hover:underline truncate font-outfit"
                   title={donor.name}
                 >
                   {donor.name}
                 </h3>
-                {donorTitleInfo && (
-                  <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shadow-sm whitespace-nowrap ${donorTitleInfo.bg} dark:bg-opacity-20`}>
-                    {donorTitleInfo.icon}
-                    {donorTitleInfo.title}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center text-emerald-700/70 dark:text-emerald-400/70 text-xs font-medium truncate">
-                <MapPin size={12} className="mr-1 text-emerald-500 shrink-0" />
-                {donor.location}
+                <div className="flex items-center text-slate-500 dark:text-slate-400 text-sm font-bold mt-1">
+                  <MapPin size={14} className="mr-1.5 text-emerald-500 shrink-0" />
+                  <span className="truncate">{donor.location}</span>
+                </div>
               </div>
             </div>
-            <div className="flex flex-col items-center shrink-0">
-              <div className={`flex items-center justify-center w-12 h-12 rounded-full shadow-sm transition-colors duration-500 border-2 ${isEligible ? 'bg-white dark:bg-slate-800 text-red-600 border-red-100 dark:border-red-900/30 shadow-red-100 dark:shadow-none' : 'bg-gray-50 dark:bg-slate-800 text-gray-400 dark:text-slate-500 border-gray-100 dark:border-slate-700'}`}>
-                  <span className="font-extrabold text-lg">{donor.bloodGroup}</span>
+
+            {donorTitleInfo && (
+              <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-xl text-[11px] font-black border shadow-sm w-fit ${donorTitleInfo.bg} dark:bg-opacity-10 uppercase tracking-widest`}>
+                {donorTitleInfo.icon}
+                {donorTitleInfo.title}
               </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <div className="bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl p-3 border border-slate-100/50 dark:border-slate-800/50">
+              <div className="flex items-center text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">
+                  <Calendar size={12} className="mr-1.5 text-emerald-500" />
+                  <span>শেষ দান</span>
+              </div>
+              <p className="font-black text-slate-800 dark:text-slate-200 text-xs">{hasDonatedBefore ? donor.lastDonationDate : 'এখনও দেননি'}</p>
+            </div>
+            
+            <div className="bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl p-3 border border-slate-100/50 dark:border-slate-800/50">
+              <div className="flex items-center text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">
+                  <Award size={12} className="mr-1.5 text-emerald-500" />
+                  <span>মোট দান</span>
+              </div>
+              <p className="font-black text-emerald-600 dark:text-emerald-400 text-xs">{donor.totalDonations} বার</p>
             </div>
           </div>
 
-          <div className="space-y-2 bg-emerald-50/30 dark:bg-emerald-900/10 rounded-lg p-3 transition-colors group-hover:bg-emerald-50/60 dark:group-hover:bg-emerald-900/20 border border-emerald-100/30 dark:border-emerald-800/30">
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center text-emerald-800/60 dark:text-emerald-400/60">
-                  <Calendar size={14} className="mr-1.5 text-emerald-500" />
-                  <span>শেষ দান</span>
-              </div>
-              <span className="font-bold text-emerald-900 dark:text-emerald-100">{hasDonatedBefore ? donor.lastDonationDate : 'এখনও দেননি'}</span>
-            </div>
-            
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center text-emerald-800/60 dark:text-emerald-400/60">
-                  <Award size={14} className="mr-1.5 text-emerald-500" />
-                  <span>মোট দান</span>
-              </div>
-              <span className="font-bold text-emerald-900 dark:text-emerald-100 bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-emerald-100 dark:border-slate-700 shadow-xs">{donor.totalDonations} বার</span>
-            </div>
-
-            <div className="flex items-center justify-between text-xs pt-1.5 border-t border-emerald-100/30 dark:border-emerald-800/30">
-              <div className="flex items-center text-emerald-800/60 dark:text-emerald-400/60">
-                  <Clock size={14} className="mr-1.5 text-emerald-500" />
+          <div className="bg-emerald-50/30 dark:bg-emerald-900/10 rounded-2xl p-4 border border-emerald-100/30 dark:border-emerald-800/30 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center text-emerald-800/60 dark:text-emerald-400/60 text-[10px] font-black uppercase tracking-widest">
+                  <Clock size={14} className="mr-2 text-emerald-500" />
                   <span>পরবর্তী দান</span>
               </div>
-              <span className={`font-bold ${isDateEligible ? 'text-emerald-600 dark:text-emerald-400' : 'text-orange-600 dark:text-orange-400'}`}>
+              <span className={`font-black text-sm ${isDateEligible ? 'text-emerald-600 dark:text-emerald-400' : 'text-orange-600 dark:text-orange-400'}`}>
                 {formattedNextDate}
               </span>
             </div>
           </div>
-
-          <div className="mt-4 flex items-center justify-between h-7">
-            <AnimatePresence mode="wait">
-              <motion.div 
-                key={`${isDonorAvailable}-${isDateEligible}`}
-                initial={{ opacity: 0, scale: 0.9, y: 5 }}
-                animate={{ 
-                  opacity: 1, 
-                  scale: [0.9, 1.05, 1],
-                  y: 0
-                }}
-                exit={{ opacity: 0, scale: 0.9, y: -5 }}
-                whileHover={{ scale: 1.02 }}
-                transition={{ 
-                  duration: 0.4, 
-                  times: [0, 0.6, 1],
-                  ease: "easeOut" 
-                }}
-                className="w-full cursor-default"
-              >
-                {!isDonorAvailable ? (
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 border border-gray-200 dark:border-slate-700 w-full justify-center">
-                    <Ban size={10} className="mr-1" />
-                    অনুপলব্ধ
-                  </span>
-                ) : isDateEligible ? (
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/30 shadow-xs w-full justify-center">
-                    <span className="relative flex h-1.5 w-1.5 mr-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-600"></span>
-                    </span>
-                    রক্ত দিতে পারবেন
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-orange-50 dark:bg-orange-900/10 text-orange-700 dark:text-orange-400 border border-orange-100 dark:border-orange-900/20 w-full justify-center">
-                    <Clock size={10} className="mr-1" />
-                    অপেক্ষমান ({remainingDays > 0 ? remainingDays : 0} দিন)
-                  </span>
-                )}
-              </motion.div>
-            </AnimatePresence>
-          </div>
         </div>
 
-        <div className="p-3 pt-0 mt-auto flex gap-2">
+        <div className="flex flex-col gap-3">
           {isEligible ? (
               <button 
                 onClick={(e) => {
@@ -199,7 +162,7 @@ const DonorCard: React.FC<DonorCardProps> = ({ donor, onNameClick, onEdit, canEd
                   if (onCall) {
                     onCall(donor);
                   } else {
-                    // Fallback for cases where onCall is not provided
+                    // Fallback
                     // @ts-ignore
                     if (window.Android && window.Android.makeSipCall) {
                       const callerUid = auth.currentUser?.uid || 'unknown';
@@ -215,31 +178,42 @@ const DonorCard: React.FC<DonorCardProps> = ({ donor, onNameClick, onEdit, canEd
                     }
                   }
                 }}
-                className="flex-1 flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-4 rounded-lg transition-all duration-300 shadow-md shadow-red-100 dark:shadow-none hover:shadow-red-200 active:scale-95"
+                className="w-full flex items-center justify-center gap-3 bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-2xl transition-all duration-300 shadow-xl shadow-red-500/20 active:scale-95 uppercase tracking-widest text-xs"
               >
-                <Phone size={16} fill="currentColor" className="animate-pulse" />
-                <span className="text-sm">কল করুন</span>
+                <Phone size={18} fill="currentColor" className="animate-pulse" />
+                <span>কল করুন</span>
               </button>
           ) : (
               <button 
                 disabled
-                className="flex-1 flex items-center justify-center space-x-2 bg-gray-50 dark:bg-slate-800 text-gray-400 dark:text-slate-500 font-bold py-2.5 px-4 rounded-lg cursor-not-allowed transition-colors border border-gray-100 dark:border-slate-700"
+                className="w-full flex items-center justify-center gap-3 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-black py-4 rounded-2xl cursor-not-allowed transition-colors border border-slate-200 dark:border-slate-700 uppercase tracking-widest text-xs"
               >
-                <Phone size={16} />
-                <span className="text-sm">
+                <Phone size={18} />
+                <span>
                   {!isDonorAvailable ? 'অনুপলব্ধ' : 'অপেক্ষমান'}
                 </span>
               </button>
           )}
-          {onRecordDonation && (
-            <button
-              onClick={() => onRecordDonation(donor)}
-              className="flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/20 hover:bg-emerald-200 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 font-bold py-2.5 px-4 rounded-lg transition-colors border border-emerald-200 dark:border-emerald-800/30 shrink-0"
-              title="রক্ত দিয়েছে"
-            >
-              <Droplet size={18} fill="currentColor" />
-            </button>
-          )}
+          
+          <div className="flex gap-3">
+            {onRecordDonation && (
+              <button
+                onClick={() => onRecordDonation(donor)}
+                className="flex-1 flex items-center justify-center gap-2 bg-emerald-100 dark:bg-emerald-900/20 hover:bg-emerald-200 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 font-black py-3 rounded-2xl transition-all border border-emerald-200 dark:border-emerald-800/30 uppercase tracking-widest text-[10px]"
+              >
+                <Droplet size={14} fill="currentColor" />
+                <span>রক্তদান রেকর্ড</span>
+              </button>
+            )}
+            {canEdit && onEdit && (
+              <button
+                onClick={() => onEdit(donor)}
+                className="flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 font-black p-3 rounded-2xl transition-all border border-slate-200 dark:border-slate-700"
+              >
+                <Edit3 size={16} />
+              </button>
+            )}
+          </div>
         </div>
       </motion.div>
   );

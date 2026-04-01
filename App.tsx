@@ -8,15 +8,10 @@ import AdminPanel from './components/AdminPanel';
 import AIChat from './components/AIChat';
 import Auth from './components/Auth';
 import ErrorBoundary from './components/ErrorBoundary';
-import UserManagement from './components/UserManagement';
 import RequestModal from './components/RequestModal';
-import RequestManager from './components/RequestManager';
-import Leaderboard from './components/Leaderboard';
 import Profile from './components/Profile';
 import RecordDonationModal from './components/RecordDonationModal';
 import CallInterface from './components/CallInterface';
-import CallRecordsPanel from './components/CallRecordsPanel';
-import FollowUpManager from './components/FollowUpManager';
 import { logActivity } from './services/logService';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, signOut, User, sendEmailVerification } from 'firebase/auth';
@@ -51,14 +46,9 @@ const App: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [showAuth, setShowAuth] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
-  const [adminInitialIsAdding, setAdminInitialIsAdding] = useState(false);
+  const [adminInitialView, setAdminInitialView] = useState<'menu' | 'users' | 'requests' | 'calls' | 'leaderboard' | 'followups' | 'facebookMessaging' | 'addDonor' | 'sipConfig' | 'smtpConfig' | 'facebookConfig'>('menu');
   const [editingDonor, setEditingDonor] = useState<Donor | null>(null);
-  const [showUserManagement, setShowUserManagement] = useState(false);
-  const [showRequestManager, setShowRequestManager] = useState(false);
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [showCallRecords, setShowCallRecords] = useState(false);
-  const [showFollowUps, setShowFollowUps] = useState(false);
   const [selectedDonorForRequest, setSelectedDonorForRequest] = useState<Donor | null>(null);
   const [selectedDonorForDonation, setSelectedDonorForDonation] = useState<Donor | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<string>('');
@@ -417,119 +407,130 @@ const App: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-      <style>{`
-        @keyframes slideInRight {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-      `}</style>
-      
-      {/* Navbar */}
-      <nav className="bg-white dark:bg-slate-900 shadow-lg sticky top-0 z-40 border-b border-emerald-100 dark:border-slate-800 transition-colors duration-300">
-        <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center h-16 md:h-20">
-            {/* Left: Logo and Title */}
-            <div 
-              className="flex items-center gap-2 md:gap-3 cursor-pointer group" 
-              onClick={() => {
-                setSelectedGroup('');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            >
-              <div className="h-10 w-10 md:h-14 md:w-14 relative flex-shrink-0 transition-transform group-hover:scale-110">
-                  <ShishirLogo className="h-full w-full drop-shadow-sm" />
-              </div>
-              <div className="flex flex-col">
-                 <h1 className="text-lg md:text-2xl font-bold text-emerald-800 dark:text-emerald-400 leading-none font-hind">শিশির</h1>
-                 <p className="text-[8px] md:text-[10px] text-red-600 dark:text-red-400 font-black tracking-widest uppercase">স্বেচ্ছাসেবী সংগঠন</p>
-              </div>
-            </div>
-
-            {/* Center: Navigation Links (Desktop) */}
-            <div className="hidden md:flex items-center gap-6 lg:gap-10">
-              <button 
+      <div className="min-h-screen flex flex-col bg-white dark:bg-slate-950 transition-colors duration-300 relative overflow-hidden">
+        {/* Background Blobs */}
+        <div className="bg-blob blob-green opacity-20 dark:opacity-10" />
+        <div className="bg-blob blob-red opacity-10 dark:opacity-5" />
+        
+        <style>{`
+          @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+          }
+        `}</style>
+        
+        {/* Navbar */}
+        <nav className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl sticky top-0 z-40 border-b border-emerald-100/50 dark:border-slate-800/50 transition-colors duration-300">
+          <div className="container mx-auto px-4">
+            <div className="flex justify-between items-center h-20 md:h-24">
+              {/* Left: Logo and Title */}
+              <div 
+                className="flex items-center gap-3 md:gap-4 cursor-pointer group" 
                 onClick={() => {
                   setSelectedGroup('');
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className={`flex items-center gap-2 text-sm font-black uppercase tracking-widest transition-all hover:scale-105 ${!selectedGroup ? 'text-emerald-700 dark:text-emerald-400 border-b-2 border-emerald-600 dark:border-emerald-500 pb-1' : 'text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400'}`}
               >
-                <Home size={18} />
-                <span>হোম</span>
-              </button>
-              
-              {(userRole === 'admin' || userRole === 'editor' || currentUser?.email?.toLowerCase() === MAIN_ADMIN_EMAIL) && (
+                <div className="h-12 w-12 md:h-16 md:w-16 relative flex-shrink-0 transition-transform group-hover:scale-110 duration-500">
+                    <ShishirLogo className="h-full w-full drop-shadow-xl" />
+                </div>
+                <div className="flex flex-col">
+                   <h1 className="text-xl md:text-3xl font-black text-emerald-900 dark:text-emerald-400 leading-none font-outfit tracking-tight">শিশির</h1>
+                   <p className="text-[10px] md:text-[12px] text-red-600 dark:text-red-400 font-black tracking-[0.3em] uppercase mt-1">স্বেচ্ছাসেবী সংগঠন</p>
+                </div>
+              </div>
+
+              {/* Center: Navigation Links (Desktop) */}
+              <div className="hidden md:flex items-center gap-8 lg:gap-12">
                 <button 
                   onClick={() => {
-                    if (userRole === 'editor') {
-                      setShowLeaderboard(true);
-                    } else {
-                      setShowAdmin(true);
-                    }
+                    setSelectedGroup('');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className={`flex items-center gap-2 text-sm font-black uppercase tracking-widest transition-all hover:scale-105 ${(showAdmin || showLeaderboard) ? 'text-emerald-700 dark:text-emerald-400 border-b-2 border-emerald-600 dark:border-emerald-500 pb-1' : 'text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400'}`}
+                  className={`relative py-2 text-sm font-black uppercase tracking-widest transition-all group ${!selectedGroup ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400'}`}
                 >
-                  <Shield size={18} />
-                  <span>{userRole === 'editor' ? 'লিডারবোর্ড' : 'অ্যাডমিন প্যানেল'}</span>
+                  <span className="flex items-center gap-2">
+                    <Home size={18} />
+                    <span>হোম</span>
+                  </span>
+                  {!selectedGroup && (
+                    <motion.div layoutId="nav-underline" className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-600 rounded-full" />
+                  )}
                 </button>
-              )}
-            </div>
-
-            {/* Right: User Actions / Mobile Menu Toggle */}
-            <div className="flex items-center gap-2 md:gap-4">
-              {/* Dark Mode Toggle (Desktop) */}
-              <button 
-                onClick={toggleDarkMode}
-                className="p-2.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
-                title={isDarkMode ? "লাইট মুড" : "ডার্ক মুড"}
-              >
-                {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-              </button>
-
-              <div className="hidden sm:flex items-center">
-                {currentUser ? (
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => setShowProfile(true)}
-                      className="p-2.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
-                      title="আমার প্রোফাইল"
-                    >
-                      <UserIcon size={20} />
-                    </button>
-                    <div className="hidden lg:flex flex-col items-end mr-2">
-                      <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter">লগইন করা আছে</span>
-                      <span className="text-xs font-black text-slate-800 dark:text-slate-200">{currentUser.email?.split('@')[0]}</span>
-                    </div>
-                    <button 
-                      onClick={handleLogout}
-                      className="flex items-center gap-2 text-white bg-red-600 hover:bg-red-700 transition-all px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-red-500/20 dark:shadow-none active:scale-95"
-                    >
-                      <LogOut size={14} />
-                      <span className="hidden lg:inline">লগআউট</span>
-                    </button>
-                  </div>
-                ) : (
+                
+                {(userRole === 'admin' || userRole === 'editor' || currentUser?.email?.toLowerCase() === MAIN_ADMIN_EMAIL) && (
                   <button 
-                    onClick={() => setShowAuth(true)}
-                    className="flex items-center gap-2 text-white bg-emerald-600 hover:bg-emerald-700 transition-all px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95"
+                    onClick={() => {
+                      if (userRole === 'editor') {
+                        setAdminInitialView('leaderboard');
+                      } else {
+                        setAdminInitialView('menu');
+                      }
+                      setShowAdmin(true);
+                    }}
+                    className={`relative py-2 text-sm font-black uppercase tracking-widest transition-all group ${showAdmin ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400'}`}
                   >
-                    <Lock size={14} />
-                    <span>লগইন</span>
+                    <span className="flex items-center gap-2">
+                      <Shield size={18} />
+                      <span>{userRole === 'editor' ? 'লিডারবোর্ড' : 'অ্যাডমিন প্যানেল'}</span>
+                    </span>
+                    {showAdmin && (
+                      <motion.div layoutId="nav-underline" className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-600 rounded-full" />
+                    )}
                   </button>
                 )}
               </div>
-              
-              {/* Mobile Menu Button */}
-              <button 
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="md:hidden p-2.5 text-emerald-800 dark:text-emerald-400 bg-emerald-50 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-slate-700 rounded-xl transition-all active:scale-90"
-              >
-                {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-              </button>
+
+              {/* Right: User Actions / Mobile Menu Toggle */}
+              <div className="flex items-center gap-3 md:gap-6">
+                {/* Dark Mode Toggle (Desktop) */}
+                <button 
+                  onClick={toggleDarkMode}
+                  className="p-3 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all duration-300 active:scale-90"
+                  title={isDarkMode ? "লাইট মুড" : "ডার্ক মুড"}
+                >
+                  {isDarkMode ? <Sun size={22} /> : <Moon size={22} />}
+                </button>
+
+                <div className="hidden sm:flex items-center">
+                  {currentUser ? (
+                    <div className="flex items-center gap-4">
+                      <button 
+                        onClick={() => setShowProfile(true)}
+                        className="p-3 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all"
+                        title="আমার প্রোফাইল"
+                      >
+                        <UserIcon size={22} />
+                      </button>
+                      <button 
+                        onClick={handleLogout}
+                        className="flex items-center gap-2 text-white bg-red-600 hover:bg-red-700 transition-all px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-red-500/20 active:scale-95"
+                      >
+                        <LogOut size={16} />
+                        <span className="hidden lg:inline">লগআউট</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => setShowAuth(true)}
+                      className="flex items-center gap-2 text-white bg-emerald-600 hover:bg-emerald-700 transition-all px-8 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20 active:scale-95"
+                    >
+                      <Lock size={16} />
+                      <span>লগইন</span>
+                    </button>
+                  )}
+                </div>
+                
+                {/* Mobile Menu Button */}
+                <button 
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="md:hidden p-3 text-emerald-900 dark:text-emerald-400 bg-emerald-50 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-slate-700 rounded-2xl transition-all active:scale-90"
+                >
+                  {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
         {/* Mobile Menu Dropdown */}
         <AnimatePresence>
@@ -569,10 +570,11 @@ const App: React.FC = () => {
                   <button 
                     onClick={() => {
                       if (userRole === 'editor') {
-                        setShowLeaderboard(true);
+                        setAdminInitialView('leaderboard');
                       } else {
-                        setShowAdmin(true);
+                        setAdminInitialView('menu');
                       }
+                      setShowAdmin(true);
                       setIsMobileMenuOpen(false);
                     }}
                     className="w-full flex items-center gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold hover:bg-emerald-50 dark:hover:bg-slate-700 hover:text-emerald-700 dark:hover:text-emerald-400 transition-all"
@@ -626,7 +628,7 @@ const App: React.FC = () => {
         </AnimatePresence>
       </nav>
 
-      {currentUser && (
+      {currentUser && !showAdmin && !showProfile && !showAuth && !selectedGroup && (
         <motion.button
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -648,42 +650,12 @@ const App: React.FC = () => {
         <AdminPanel 
           onClose={() => {
             setShowAdmin(false);
-            setAdminInitialIsAdding(false);
+            setAdminInitialView('menu');
             setEditingDonor(null);
           }} 
           userRole={userRole}
-          initialIsAdding={adminInitialIsAdding}
+          initialView={adminInitialView}
           initialEditingDonor={editingDonor}
-          onShowUserManagement={() => setShowUserManagement(true)}
-          onShowRequestManager={() => setShowRequestManager(true)}
-          onShowCallRecords={() => setShowCallRecords(true)}
-          onShowLeaderboard={() => setShowLeaderboard(true)}
-          onShowFollowUps={() => setShowFollowUps(true)}
-        />
-      )}
-      {showUserManagement && userRole === 'admin' && (
-        <UserManagement onClose={() => setShowUserManagement(false)} />
-      )}
-      {showRequestManager && userRole === 'admin' && (
-        <RequestManager onClose={() => setShowRequestManager(false)} />
-      )}
-      {showFollowUps && userRole === 'admin' && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] h-full overflow-hidden relative flex flex-col border border-slate-200 dark:border-slate-800 transition-colors duration-300">
-            <button 
-              onClick={() => setShowFollowUps(false)}
-              className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 dark:hover:bg-slate-800 rounded-full transition-colors z-10 text-white"
-            >
-              <X size={20} />
-            </button>
-            <FollowUpManager onClose={() => setShowFollowUps(false)} />
-          </div>
-        </div>
-      )}
-      {showLeaderboard && (userRole === 'admin' || userRole === 'editor' || currentUser?.email?.toLowerCase() === MAIN_ADMIN_EMAIL) && (
-        <Leaderboard 
-          onClose={() => setShowLeaderboard(false)} 
-          userRole={userRole}
         />
       )}
       {showProfile && (
@@ -703,20 +675,6 @@ const App: React.FC = () => {
           donor={selectedDonorForDonation}
           onClose={() => setSelectedDonorForDonation(null)}
         />
-      )}
-
-      {showCallRecords && (userRole === 'admin' || currentUser?.email?.toLowerCase() === MAIN_ADMIN_EMAIL) && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] h-full overflow-hidden relative flex flex-col border border-slate-200 dark:border-slate-800 transition-colors duration-300">
-            <button 
-              onClick={() => setShowCallRecords(false)}
-              className="absolute top-4 right-4 p-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-full transition-colors z-10"
-            >
-              <X size={20} className="text-gray-600 dark:text-slate-400" />
-            </button>
-            <CallRecordsPanel />
-          </div>
-        </div>
       )}
 
       {/* Email Verification Overlay */}

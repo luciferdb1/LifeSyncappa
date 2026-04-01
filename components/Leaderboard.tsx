@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { UserProfile } from '../types';
-import { Trophy, Medal, Award, X, Loader2, Users, Star, Info, TrendingUp, Heart, PlusCircle, PhoneCall } from 'lucide-react';
+import { Trophy, Medal, Award, X, Loader2, Users, Info, TrendingUp, Heart, PlusCircle, PhoneCall } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface LeaderboardProps {
@@ -23,7 +23,11 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, userRole }) => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userList: UserProfile[] = [];
       snapshot.forEach((doc) => {
-        userList.push(doc.data() as UserProfile);
+        const data = doc.data() as UserProfile;
+        // Only include editors and users, exclude admins
+        if (data.role !== 'admin') {
+          userList.push(data);
+        }
       });
       setUsers(userList);
       setLoading(false);
@@ -35,64 +39,63 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, userRole }) => {
     return () => unsubscribe();
   }, []);
 
-  const totalPointsDistributed = users.reduce((sum, user) => sum + (user.points || 0), 0);
   const activeUsers = users.filter(u => (u.points || 0) > 0 || (u.donorsAdded || 0) > 0);
+  const totalPoints = activeUsers.reduce((acc, curr) => acc + (curr.points || 0), 0);
   const topThree = activeUsers.slice(0, 3);
-  const restOfUsers = activeUsers.slice(3);
-
+  
   const PointDistribution = () => (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-gradient-to-br from-purple-50 to-indigo-50 p-6 rounded-2xl border border-purple-100 mb-6 shadow-sm"
+      className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800/50 p-6 rounded-2xl border border-purple-100 dark:border-slate-700 mb-6 shadow-sm transition-colors duration-300"
     >
       <div className="flex items-center gap-2 mb-4">
-        <Info size={20} className="text-purple-600" />
-        <h3 className="font-bold text-purple-900">পয়েন্ট ডিস্ট্রিবিউশন গাইড</h3>
+        <Info size={20} className="text-purple-600 dark:text-purple-400" />
+        <h3 className="font-bold text-purple-900 dark:text-slate-200">পয়েন্ট ডিস্ট্রিবিউশন গাইড</h3>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100 flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-emerald-600">
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-purple-100 dark:border-slate-700 flex flex-col gap-2 transition-colors duration-300">
+          <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
             <PlusCircle size={18} />
             <span className="font-bold text-sm">দাতা যোগ</span>
           </div>
-          <p className="text-2xl font-black text-emerald-700">২০ <span className="text-xs font-medium text-gray-500">পয়েন্ট</span></p>
-          <p className="text-[10px] text-gray-500">প্রতিটি নতুন রক্তদাতা যোগ করার জন্য</p>
+          <p className="text-2xl font-black text-emerald-700 dark:text-emerald-500">২০ <span className="text-xs font-medium text-gray-500 dark:text-slate-500">পয়েন্ট</span></p>
+          <p className="text-[10px] text-gray-500 dark:text-slate-500">প্রতিটি নতুন রক্তদাতা যোগ করার জন্য</p>
         </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100 flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-blue-600">
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-purple-100 dark:border-slate-700 flex flex-col gap-2 transition-colors duration-300">
+          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
             <Heart size={18} />
             <span className="font-bold text-sm">নিজের দাতা</span>
           </div>
-          <p className="text-2xl font-black text-blue-700">১০ <span className="text-xs font-medium text-gray-500">পয়েন্ট</span></p>
-          <p className="text-[10px] text-gray-500">নিজের যোগ করা দাতা রক্ত দিলে</p>
+          <p className="text-2xl font-black text-blue-700 dark:text-blue-500">১০ <span className="text-xs font-medium text-gray-500 dark:text-slate-500">পয়েন্ট</span></p>
+          <p className="text-[10px] text-gray-500 dark:text-slate-500">নিজের যোগ করা দাতা রক্ত দিলে</p>
         </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100 flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-orange-600">
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-purple-100 dark:border-slate-700 flex flex-col gap-2 transition-colors duration-300">
+          <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
             <TrendingUp size={18} />
             <span className="font-bold text-sm">অন্যের দাতা</span>
           </div>
-          <p className="text-2xl font-black text-orange-700">৫ <span className="text-xs font-medium text-gray-500">পয়েন্ট</span></p>
-          <p className="text-[10px] text-gray-500">অন্যের যোগ করা দাতা রক্ত দিলে</p>
+          <p className="text-2xl font-black text-orange-700 dark:text-orange-500">৫ <span className="text-xs font-medium text-gray-500 dark:text-slate-500">পয়েন্ট</span></p>
+          <p className="text-[10px] text-gray-500 dark:text-slate-500">অন্যের যোগ করা দাতা রক্ত দিলে</p>
         </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100 flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-purple-600">
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-purple-100 dark:border-slate-700 flex flex-col gap-2 transition-colors duration-300">
+          <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400">
             <PhoneCall size={18} />
             <span className="font-bold text-sm">কনভিন্সিং</span>
           </div>
-          <p className="text-2xl font-black text-purple-700">৫ <span className="text-xs font-medium text-gray-500">পয়েন্ট</span></p>
-          <p className="text-[10px] text-gray-500">কল করে দাতা রাজি করালে</p>
+          <p className="text-2xl font-black text-purple-700 dark:text-purple-500">৫ <span className="text-xs font-medium text-gray-500 dark:text-slate-500">পয়েন্ট</span></p>
+          <p className="text-[10px] text-gray-500 dark:text-slate-500">কল করে দাতা রাজি করালে</p>
         </div>
       </div>
     </motion.div>
   );
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[70] p-4">
+    <div className="fixed inset-0 bg-white dark:bg-slate-900 flex flex-col z-[70] overflow-hidden">
       <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-white dark:bg-slate-900 w-full max-w-5xl h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-white/20 dark:border-slate-800 transition-colors duration-300"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="bg-white dark:bg-slate-900 w-full h-full flex flex-col overflow-hidden transition-colors duration-300"
       >
         
         {/* Header */}
@@ -130,19 +133,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, userRole }) => {
         <div className="flex-1 overflow-hidden flex flex-col bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
           
           {/* Statistics Bar */}
-          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <motion.div 
-              whileHover={{ y: -2 }}
-              className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-purple-100 dark:border-slate-700 flex items-center gap-5 transition-colors duration-300"
-            >
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-2xl text-yellow-600 dark:text-yellow-400 border border-yellow-100 dark:border-yellow-900/30">
-                <Star size={24} fill="currentColor" />
-              </div>
-              <div>
-                <p className="text-[10px] text-gray-400 dark:text-slate-500 font-black uppercase tracking-widest mb-1">মোট পয়েন্ট প্রদান</p>
-                <p className="text-3xl font-black text-gray-800 dark:text-slate-200 tracking-tight">{totalPointsDistributed}</p>
-              </div>
-            </motion.div>
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             <motion.div 
               whileHover={{ y: -2 }}
               className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-emerald-100 dark:border-slate-700 flex items-center gap-5 transition-colors duration-300"
@@ -155,59 +146,22 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, userRole }) => {
                 <p className="text-3xl font-black text-gray-800 dark:text-slate-200 tracking-tight">{activeUsers.length}</p>
               </div>
             </motion.div>
+
+            <motion.div 
+              whileHover={{ y: -2 }}
+              className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-purple-100 dark:border-slate-700 flex items-center gap-5 transition-colors duration-300"
+            >
+              <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-2xl text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-900/30">
+                <Trophy size={24} />
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-400 dark:text-slate-500 font-black uppercase tracking-widest mb-1">মোট অর্জিত পয়েন্ট</p>
+                <p className="text-3xl font-black text-gray-800 dark:text-slate-200 tracking-tight">{totalPoints}</p>
+              </div>
+            </motion.div>
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 pb-6">
-            <AnimatePresence>
-              {canSeeBreakdown && showInfo && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 20 }}
-                  className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800/50 p-6 rounded-2xl border border-purple-100 dark:border-slate-700 mb-6 shadow-sm transition-colors duration-300"
-                >
-                  <div className="flex items-center gap-2 mb-4">
-                    <Info size={20} className="text-purple-600 dark:text-purple-400" />
-                    <h3 className="font-bold text-purple-900 dark:text-slate-200">পয়েন্ট ডিস্ট্রিবিউশন গাইড</h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-purple-100 dark:border-slate-700 flex flex-col gap-2 transition-colors duration-300">
-                      <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                        <PlusCircle size={18} />
-                        <span className="font-bold text-sm">দাতা যোগ</span>
-                      </div>
-                      <p className="text-2xl font-black text-emerald-700 dark:text-emerald-500">২০ <span className="text-xs font-medium text-gray-500 dark:text-slate-500">পয়েন্ট</span></p>
-                      <p className="text-[10px] text-gray-500 dark:text-slate-500">প্রতিটি নতুন রক্তদাতা যোগ করার জন্য</p>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-purple-100 dark:border-slate-700 flex flex-col gap-2 transition-colors duration-300">
-                      <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
-                        <Heart size={18} />
-                        <span className="font-bold text-sm">নিজের দাতা</span>
-                      </div>
-                      <p className="text-2xl font-black text-blue-700 dark:text-blue-500">১০ <span className="text-xs font-medium text-gray-500 dark:text-slate-500">পয়েন্ট</span></p>
-                      <p className="text-[10px] text-gray-500 dark:text-slate-500">নিজের যোগ করা দাতা রক্ত দিলে</p>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-purple-100 dark:border-slate-700 flex flex-col gap-2 transition-colors duration-300">
-                      <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
-                        <TrendingUp size={18} />
-                        <span className="font-bold text-sm">অন্যের দাতা</span>
-                      </div>
-                      <p className="text-2xl font-black text-orange-700 dark:text-orange-500">৫ <span className="text-xs font-medium text-gray-500 dark:text-slate-500">পয়েন্ট</span></p>
-                      <p className="text-[10px] text-gray-500 dark:text-slate-500">অন্যের যোগ করা দাতা রক্ত দিলে</p>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-purple-100 dark:border-slate-700 flex flex-col gap-2 transition-colors duration-300">
-                      <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400">
-                        <PhoneCall size={18} />
-                        <span className="font-bold text-sm">কনভিন্সিং</span>
-                      </div>
-                      <p className="text-2xl font-black text-purple-700 dark:text-purple-500">৫ <span className="text-xs font-medium text-gray-500 dark:text-slate-500">পয়েন্ট</span></p>
-                      <p className="text-[10px] text-gray-500 dark:text-slate-500">কল করে দাতা রাজি করালে</p>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
             {loading ? (
               <div className="flex flex-col items-center justify-center h-64">
                 <Loader2 className="animate-spin text-purple-600 dark:text-purple-400 mb-4" size={48} />
@@ -492,6 +446,14 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, userRole }) => {
                     </tbody>
                   </table>
                 </div>
+
+                <AnimatePresence>
+                  {canSeeBreakdown && showInfo && (
+                    <div className="mt-8 pb-8">
+                      <PointDistribution />
+                    </div>
+                  )}
+                </AnimatePresence>
               </div>
             )}
           </div>

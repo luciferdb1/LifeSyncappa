@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Calendar, Loader2, Droplet, Award, Upload, Download, Image as ImageIcon } from 'lucide-react';
+import { X, Calendar, Loader2, Droplet, Award, Upload, Download, Image as ImageIcon, Facebook, CheckCircle2 } from 'lucide-react';
 import { Donor } from '../types';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { doc, updateDoc, increment, getDoc } from 'firebase/firestore';
@@ -17,7 +17,67 @@ const RecordDonationModal: React.FC<RecordDonationModalProps> = ({ donor, onClos
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [step, setStep] = useState<'form' | 'generating' | 'result'>('form');
   const [posterUrl, setPosterUrl] = useState<string | null>(null);
+  const [postingToFacebook, setPostingToFacebook] = useState(false);
+  const [facebookPostSuccess, setFacebookPostSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePostToFacebook = async () => {
+    if (!posterUrl) return;
+    setPostingToFacebook(true);
+    setFacebookPostSuccess(false);
+    try {
+      // Fetch token from Firestore
+      const docRef = doc(db, 'settings', 'facebookConfig');
+      const docSnap = await getDoc(docRef);
+      
+      if (!docSnap.exists() || !docSnap.data().pageAccessToken) {
+        alert("ফেসবুক পেজ টোকেন সেট করা নেই। দয়া করে অ্যাডমিন প্যানেল থেকে টোকেন সেট করুন।");
+        setPostingToFacebook(false);
+        return;
+      }
+      
+      const pageAccessToken = docSnap.data().pageAccessToken;
+
+      // Convert base64 to Blob
+      const base64Data = posterUrl.replace(/^data:image\/\w+;base64,/, "");
+      const byteCharacters = atob(base64Data);
+      const byteArrays = [];
+      for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+        const slice = byteCharacters.slice(offset, offset + 512);
+        const byteNumbers = new Array(slice.length);
+        for (let i = 0; i < slice.length; i++) {
+          byteNumbers[i] = slice.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        byteArrays.push(byteArray);
+      }
+      const blob = new Blob(byteArrays, { type: 'image/png' });
+
+      const formData = new FormData();
+      formData.append('source', blob, 'poster.png');
+      formData.append('message', `অভিনন্দন ${donor.name}! রক্তদান করে মানবতার সেবায় এগিয়ে আসার জন্য আপনাকে অসংখ্য ধন্যবাদ।\nরক্তের গ্রুপ: ${donor.bloodGroup}\nমোট রক্তদান: ${(donor.totalDonations || 0) + 1} বার\n\n#BloodDonation #LifeSync #DonateBlood`);
+
+      const url = `https://graph.facebook.com/v19.0/me/photos?access_token=${pageAccessToken}`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        setFacebookPostSuccess(true);
+      } else {
+        const data = await response.json();
+        console.error("Failed to post to Facebook:", data);
+        alert("ফেসবুকে পোস্ট করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।");
+      }
+    } catch (error) {
+      console.error("Error posting to Facebook:", error);
+      alert("ফেসবুকে পোস্ট করতে সমস্যা হয়েছে।");
+    } finally {
+      setPostingToFacebook(false);
+    }
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -470,21 +530,46 @@ const RecordDonationModal: React.FC<RecordDonationModalProps> = ({ donor, onClos
           )}
 
           {step === 'result' && (
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 px-4 py-3 border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-300 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-800 font-bold transition-colors"
+                >
+                  বন্ধ করুন
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-xl font-bold shadow-md shadow-emerald-200 dark:shadow-none transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Download size={20} />
+                  ডাউনলোড
+                </button>
+              </div>
               <button
                 type="button"
-                onClick={onClose}
-                className="flex-1 px-4 py-3 border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-300 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-800 font-bold transition-colors"
+                onClick={handlePostToFacebook}
+                disabled={postingToFacebook || facebookPostSuccess}
+                className={`w-full px-4 py-3 rounded-xl font-bold shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                  facebookPostSuccess 
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 cursor-default'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 dark:shadow-none'
+                }`}
               >
-                বন্ধ করুন
-              </button>
-              <button
-                type="button"
-                onClick={handleDownload}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-xl font-bold shadow-md shadow-emerald-200 dark:shadow-none transition-all active:scale-95 flex items-center justify-center gap-2"
-              >
-                <Download size={20} />
-                ডাউনলোড
+                {postingToFacebook ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : facebookPostSuccess ? (
+                  <CheckCircle2 size={20} />
+                ) : (
+                  <Facebook size={20} />
+                )}
+                {postingToFacebook 
+                  ? 'পোস্ট করা হচ্ছে...' 
+                  : facebookPostSuccess 
+                    ? 'ফেসবুকে পোস্ট করা হয়েছে' 
+                    : 'ফেসবুক পেজে পোস্ট করুন'}
               </button>
             </div>
           )}

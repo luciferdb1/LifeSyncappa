@@ -3,173 +3,64 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
-import admin from 'firebase-admin';
-import { getFirestore } from 'firebase-admin/firestore';
 import { readFileSync } from 'fs';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-import { initializeApp as initializeClientApp } from 'firebase/app';
-import { getFirestore as getClientFirestore, collection, addDoc, getDocs, query, orderBy, limit } from 'firebase/firestore';
+// Global Error Handlers to prevent server crashes
+process.on('uncaughtException', (error) => {
+  console.error('CRITICAL: Uncaught Exception:', error);
+});
 
-// Initialize Firebase Admin
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('CRITICAL: Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+import { initializeApp as initializeClientApp } from 'firebase/app';
+import { getFirestore as getClientFirestore, collection, addDoc, getDocs, query, orderBy, limit, doc, getDoc, updateDoc, writeBatch, where, setDoc } from 'firebase/firestore';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+
+// Initialize Firebase Client
 const firebaseConfig = JSON.parse(readFileSync(path.join(__dirname, 'firebase-applet-config.json'), 'utf-8'));
 
-if (admin.apps.length === 0) {
+const clientApp = initializeClientApp(firebaseConfig);
+const db = getClientFirestore(clientApp, firebaseConfig.firestoreDatabaseId || '(default)');
+const auth = getAuth(clientApp);
+
+// Authenticate Backend
+const BACKEND_EMAIL = 'backend@lifesync.local';
+const BACKEND_PASSWORD = 'SecureBackendPassword123!';
+
+async function authenticateBackend() {
   try {
-    admin.initializeApp();
-    console.log('Firebase Admin initialized with default credentials');
-  } catch (err) {
-    console.warn('Default initialization failed, trying with explicit projectId:', err);
-    try {
-      admin.initializeApp({
-        projectId: firebaseConfig.projectId,
-      });
-      console.log('Firebase Admin initialized with explicit projectId:', firebaseConfig.projectId);
-    } catch (err2) {
-      console.error('Error initializing Firebase Admin:', err2);
+    await signInWithEmailAndPassword(auth, BACKEND_EMAIL, BACKEND_PASSWORD);
+    console.log('Backend authenticated successfully');
+  } catch (error: any) {
+    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+      try {
+        await createUserWithEmailAndPassword(auth, BACKEND_EMAIL, BACKEND_PASSWORD);
+        console.log('Backend user created and authenticated');
+      } catch (createError) {
+        console.error('Failed to create backend user. Please enable Email/Password authentication in Firebase Console.', createError);
+      }
+    } else {
+      console.error('Failed to authenticate backend. Please enable Email/Password authentication in Firebase Console.', error);
     }
   }
 }
-
-// Admin DB
-const db = getFirestore(firebaseConfig.firestoreDatabaseId || '(default)');
-
-// Client DB (for fallback/logging)
-const clientApp = initializeClientApp(firebaseConfig);
-const clientDb = getClientFirestore(clientApp, firebaseConfig.firestoreDatabaseId || '(default)');
+authenticateBackend();
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Global Debug Variable for Webhooks
-  let lastWebhookRequest: any = { status: 'No request received yet', time: new Date().toISOString() };
-
   app.use(express.json());
-
-  // Global Logger to catch ANY hit to the server for debugging
-  app.use(async (req, res, next) => {
-    // Skip logging for the debug route itself to avoid infinite loops/clutter
-    if (req.originalUrl === '/api/facebook/debug') {
-      return next();
-    }
-
-    const logData: any = {
-      method: req.method,
-      url: req.originalUrl,
-      query: req.query,
-      headers: req.headers,
-      time: new Date().toISOString()
-    };
-
-    if (req.body !== undefined && Object.keys(req.body).length > 0) {
-      logData.body = req.body;
-    }
-
-    console.log(`DEBUG LOG: ${req.method} ${req.originalUrl}`);
-    
-    // Log every hit to Firestore using CLIENT SDK
-    try {
-      await addDoc(collection(clientDb, 'webhookRawLogs'), logData);
-    } catch (err) {
-      console.error('Error logging raw hit with Client SDK:', err);
-    }
-    next();
-  });
-
-  // 1. Facebook Webhook Verification (Priority)
-  app.get(['/api/facebook/webhook', '/api/facebook/webhook/'], async (req, res) => {
-    const mode = req.query['hub.mode'];
-    const token = req.query['hub.verify_token'];
-    const challenge = req.query['hub.challenge'];
-    const VERIFY_TOKEN = (process.env.FB_VERIFY_TOKEN || 'shishir_verify_token').trim();
-    
-    lastWebhookRequest = {
-      method: 'GET',
-      query: req.query,
-      time: new Date().toISOString(),
-      headers: req.headers
-    };
-
-    console.log('--- FB VERIFICATION ATTEMPT ---', req.query);
-
-    // Log to Firestore for persistent debugging
-    try {
-      await db.collection('webhookLogs').add({
-        type: 'verification',
-        timestamp: new Date().toISOString(),
-        query: req.query,
-        headers: req.headers,
-        expectedToken: VERIFY_TOKEN,
-        match: token === VERIFY_TOKEN
-      });
-    } catch (err) {
-      console.error('Error logging to Firestore:', err);
-    }
-
-    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      console.log('--- FB VERIFICATION SUCCESS ---');
-      res.set('Content-Type', 'text/plain');
-      res.status(200).send(String(challenge));
-    } else {
-      console.log('--- FB VERIFICATION FAILED ---', { received: token, expected: VERIFY_TOKEN });
-      res.status(403).send('Verification failed');
-    }
-  });
-
-  // Debug Route to see what Facebook sent
-  app.get('/api/facebook/debug', async (req, res) => {
-    try {
-      console.log('Fetching logs from webhookRawLogs using Client SDK...');
-      const snapshot = await getDocs(collection(clientDb, 'webhookRawLogs'));
-      
-      console.log(`Found ${snapshot.size} logs`);
-      const logs = snapshot.docs.map(doc => doc.data());
-      
-      const sortedLogs = logs.sort((a: any, b: any) => 
-        new Date(b.time).getTime() - new Date(a.time).getTime()
-      ).slice(0, 10);
-
-      res.json({
-        last_10_hits: sortedLogs,
-        total_logs: snapshot.size,
-        current_server_time: new Date().toISOString(),
-        source: 'Client SDK'
-      });
-    } catch (err: any) {
-      console.warn('Error in /api/facebook/debug with Client SDK, trying Admin SDK:', err.message);
-      try {
-        const snapshot = await db.collection('webhookRawLogs').get();
-        const logs = snapshot.docs.map(doc => doc.data());
-        const sortedLogs = logs.sort((a: any, b: any) => 
-          new Date(b.time).getTime() - new Date(a.time).getTime()
-        ).slice(0, 10);
-
-        res.json({
-          last_10_hits: sortedLogs,
-          total_logs: snapshot.size,
-          current_server_time: new Date().toISOString(),
-          source: 'Admin SDK'
-        });
-      } catch (adminErr: any) {
-        console.error('Error in /api/facebook/debug with both SDKs:', adminErr);
-        res.status(500).json({ 
-          error: 'Failed to fetch logs with both SDKs', 
-          details: {
-            clientError: err.message,
-            adminError: adminErr.message,
-            code: adminErr.code
-          }
-        });
-      }
-    }
-  });
 
   // API Routes
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok' });
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
   // Test Route to verify API accessibility
@@ -180,8 +71,8 @@ async function startServer() {
   // Helper to get SMTP transporter
   async function getTransporter() {
     try {
-      const smtpSnap = await db.collection('settings').doc('smtpConfig').get();
-      const config = smtpSnap.exists ? smtpSnap.data() : null;
+      const smtpSnap = await getDoc(doc(db, 'settings', 'smtpConfig'));
+      const config = smtpSnap.exists() ? smtpSnap.data() : null;
 
       if (config && config.host && config.user && config.pass) {
         console.log('Using SMTP config from Firestore');
@@ -211,47 +102,201 @@ async function startServer() {
     });
   }
 
-  // Facebook Webhook Message Handling
-  app.post('/api/facebook/webhook', async (req, res) => {
-    const body = req.body;
+  // Function to send messages back to Facebook
+  async function sendFacebookMessage(sender_psid: string, message_payload: any) {
+    let PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
     
-    // Log incoming messages for debugging
-    console.log('Incoming FB Message:', JSON.stringify(body, null, 2));
-
-    if (body.object === 'page') {
-      try {
-        for (const entry of body.entry) {
-          if (!entry.messaging) continue;
-          
-          for (const webhook_event of entry.messaging) {
-            const sender_psid = webhook_event.sender.id;
-            
-            // Handle postback (button click)
-            if (webhook_event.postback) {
-              const payload = webhook_event.postback.payload;
-              
-              // Check if it's a blood request button
-              // The user specifically asked for "Blood Request Button"
-              if (payload === 'BLOOD_REQUEST' || payload === 'GET_STARTED_BLOOD_REQUEST') {
-                await db.collection('facebookRequests').add({
-                  facebookId: sender_psid,
-                  senderName: 'Facebook User',
-                  timestamp: new Date().toISOString(),
-                  status: 'new',
-                  payload: payload,
-                  message: webhook_event.postback.title || 'Blood Request Button Clicked'
-                });
-              }
-            }
-          }
-        }
-        res.status(200).send('EVENT_RECEIVED');
-      } catch (error) {
-        console.error('Error processing Facebook Webhook:', error);
-        res.status(500).send('INTERNAL_SERVER_ERROR');
+    try {
+      const configDoc = await getDoc(doc(db, 'settings', 'facebookConfig'));
+      if (configDoc.exists() && configDoc.data()?.pageAccessToken) {
+        PAGE_ACCESS_TOKEN = configDoc.data()?.pageAccessToken;
       }
-    } else {
-      res.sendStatus(404);
+    } catch (e) {
+      console.error("Error fetching facebook config from firestore:", e);
+    }
+
+    if (!PAGE_ACCESS_TOKEN) {
+      throw new Error("PAGE_ACCESS_TOKEN is not set in environment variables or Firestore.");
+    }
+
+    const url = `https://graph.facebook.com/v19.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`;
+    const requestBody = {
+      recipient: { id: sender_psid },
+      message: message_payload
+    };
+
+    try {
+      const response = await axios.post(url, requestBody);
+      console.log("Message sent successfully to PSID:", sender_psid);
+      return response.data;
+    } catch (error: any) {
+      console.error("Error sending Facebook message:", error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  // Endpoint to setup Facebook Messenger Profile (Get Started button & Persistent Menu)
+  app.get('/api/facebook/setup-profile', async (req, res) => {
+    let PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
+    
+    try {
+      const configDoc = await getDoc(doc(db, 'settings', 'facebookConfig'));
+      if (configDoc.exists() && configDoc.data()?.pageAccessToken) {
+        PAGE_ACCESS_TOKEN = configDoc.data()?.pageAccessToken;
+      }
+    } catch (e) {
+      console.error("Error fetching facebook config from firestore:", e);
+    }
+
+    if (!PAGE_ACCESS_TOKEN) {
+      return res.status(500).send("PAGE_ACCESS_TOKEN is not set.");
+    }
+
+    const url = `https://graph.facebook.com/v19.0/me/messenger_profile?access_token=${PAGE_ACCESS_TOKEN}`;
+    const requestBody = {
+      get_started: {
+        payload: "GET_STARTED_PAYLOAD"
+      },
+      persistent_menu: [
+        {
+          locale: "default",
+          composer_input_disabled: false,
+          call_to_actions: [
+            {
+              type: "postback",
+              title: "🩸 রক্তের জন্য আবেদন",
+              payload: "BLOOD_REQUEST"
+            },
+            {
+              type: "postback",
+              title: "🤝 রক্তদাতা নিবন্ধন",
+              payload: "DONOR_REGISTRATION"
+            },
+            {
+              type: "postback",
+              title: "❓ অন্যান্য জিজ্ঞাসা",
+              payload: "OTHER_INQUIRY"
+            }
+          ]
+        }
+      ]
+    };
+
+    try {
+      const response = await axios.post(url, requestBody);
+      res.json(response.data);
+    } catch (error: any) {
+      console.error("Error setting up profile:", error.response?.data || error.message);
+      res.status(500).send("Error setting up profile");
+    }
+  });
+
+  // Endpoint to send a direct message to a user
+  app.post('/api/facebook/messages', async (req, res) => {
+    const { recipientId, message } = req.body;
+    if (!recipientId || !message) {
+      return res.status(400).json({ error: 'Recipient ID and message are required' });
+    }
+
+    try {
+      const result = await sendFacebookMessage(recipientId, { text: message });
+      res.json({ success: true, result });
+    } catch (error: any) {
+      console.error('Error sending message:', error.response?.data || error.message);
+      const errorMessage = error.response?.data?.error?.message || error.message;
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+
+  // Endpoint to get all conversations for the page
+  app.get('/api/facebook/conversations', async (req, res) => {
+    let PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
+    let PAGE_ID = process.env.PAGE_ID;
+    
+    try {
+      const configDoc = await getDoc(doc(db, 'settings', 'facebookConfig'));
+      if (configDoc.exists()) {
+        const data = configDoc.data();
+        if (data?.pageAccessToken) PAGE_ACCESS_TOKEN = data.pageAccessToken;
+        if (data?.pageId) PAGE_ID = data.pageId;
+      }
+    } catch (e) {
+      console.error("Error fetching facebook config from firestore:", e);
+    }
+
+    if (!PAGE_ACCESS_TOKEN || !PAGE_ID) {
+      return res.status(400).json({ error: 'Page Access Token or Page ID not configured' });
+    }
+
+    try {
+      // Use a more standard set of fields for conversations
+      const url = `https://graph.facebook.com/v19.0/${PAGE_ID}/conversations?fields=participants{id,name,picture},updated_time,unread_count,snippet&access_token=${PAGE_ACCESS_TOKEN}`;
+      console.log('Fetching Facebook conversations for Page ID:', PAGE_ID);
+      const response = await axios.get(url);
+      const data = response.data;
+      
+      if (data.error) {
+        console.error('Facebook API Error in response data:', data.error);
+        throw new Error(data.error.message);
+      }
+      
+      res.json({ ...data, pageId: PAGE_ID });
+    } catch (error: any) {
+      const errorData = error.response?.data || error.message;
+      console.error('Error fetching conversations:', JSON.stringify(errorData, null, 2));
+      const errorMessage = error.response?.data?.error?.message || error.message;
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+
+  // Endpoint to get messages for a specific conversation
+  app.get('/api/facebook/messages/:psid', async (req, res) => {
+    const { psid } = req.params;
+    let PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
+    let PAGE_ID = process.env.PAGE_ID;
+    
+    try {
+      const configDoc = await getDoc(doc(db, 'settings', 'facebookConfig'));
+      if (configDoc.exists()) {
+        const data = configDoc.data();
+        if (data?.pageAccessToken) PAGE_ACCESS_TOKEN = data.pageAccessToken;
+        if (data?.pageId) PAGE_ID = data.pageId;
+      }
+    } catch (e) {
+      console.error("Error fetching facebook config from firestore:", e);
+    }
+
+    if (!PAGE_ACCESS_TOKEN || !PAGE_ID) {
+      return res.status(400).json({ error: 'Page Access Token or Page ID not configured' });
+    }
+
+    try {
+      // First find the conversation ID for this PSID
+      const convUrl = `https://graph.facebook.com/v19.0/${PAGE_ID}/conversations?fields=participants&access_token=${PAGE_ACCESS_TOKEN}`;
+      const convResponse = await axios.get(convUrl);
+      const convData = convResponse.data;
+      
+      if (convData.error) throw new Error(convData.error.message);
+      
+      const conversation = convData.data.find((c: any) => 
+        c.participants.data.some((p: any) => p.id === psid)
+      );
+      
+      if (!conversation) {
+        return res.json({ data: [] });
+      }
+      
+      const msgUrl = `https://graph.facebook.com/v19.0/${conversation.id}/messages?fields=message,created_time,from,to&access_token=${PAGE_ACCESS_TOKEN}`;
+      const msgResponse = await axios.get(msgUrl);
+      const msgData = msgResponse.data;
+      
+      if (msgData.error) throw new Error(msgData.error.message);
+      
+      res.json(msgData);
+    } catch (error: any) {
+      console.error('Error fetching messages:', error.response?.data || error.message);
+      const errorMessage = error.response?.data?.error?.message || error.message;
+      res.status(500).json({ error: errorMessage });
     }
   });
 

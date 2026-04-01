@@ -108,146 +108,149 @@ const AddDonorModal: React.FC<AddDonorModalProps> = ({ onClose, onAdd }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+    <div className="fixed inset-0 bg-white dark:bg-slate-950 flex flex-col z-[70] overflow-hidden transition-colors duration-300">
       <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.1 }}
-        className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh] sm:max-h-[85vh] transition-colors duration-300"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 20 }}
+        className="flex-1 flex flex-col overflow-hidden"
       >
         {/* Header - Sticky */}
-        <div className="bg-emerald-900 dark:bg-slate-950 p-5 sm:p-6 text-white flex justify-between items-center shrink-0 transition-colors duration-300">
-          <div className="flex items-center gap-3">
-            <div className="bg-white/10 p-2.5 rounded-2xl shadow-inner border border-white/10">
-              <Plus size={22} className="text-emerald-300" />
+        <div className="bg-emerald-900 dark:bg-slate-950 p-6 sm:p-8 text-white flex justify-between items-center shrink-0 transition-colors duration-300 border-b border-white/10">
+          <div className="flex items-center gap-4">
+            <div className="bg-white/10 p-3 rounded-2xl shadow-inner border border-white/10">
+              <Plus size={28} className="text-emerald-300" />
             </div>
             <div>
-              <h3 className="text-lg sm:text-xl font-black tracking-tight">নতুন রক্তদাতা যোগ করুন</h3>
-              <p className="text-emerald-200/60 text-[8px] sm:text-[9px] font-black uppercase tracking-widest mt-0.5">সঠিক তথ্য দিয়ে ফরমটি পূরণ করুন</p>
+              <h3 className="text-2xl sm:text-3xl font-black tracking-tight">নতুন রক্তদাতা যোগ করুন</h3>
+              <p className="text-emerald-200/60 text-[10px] sm:text-[12px] font-black uppercase tracking-widest mt-1">সঠিক তথ্য দিয়ে ফরমটি পূরণ করুন</p>
             </div>
           </div>
           <motion.button 
             whileHover={{ scale: 1.1, rotate: 90, backgroundColor: 'rgba(255,255,255,0.1)' }}
             whileTap={{ scale: 0.9 }}
             onClick={onClose} 
-            className="p-2.5 rounded-2xl transition-all"
+            className="p-3 rounded-2xl transition-all"
           >
-            <X size={20} />
+            <X size={24} />
           </motion.button>
         </div>
 
-        <div className="flex-1 p-5 sm:p-8 space-y-6 overflow-y-auto overscroll-contain bg-slate-50/50 dark:bg-slate-900/50 transition-colors duration-300">
-          {/* Name Field */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
-              <User size={12} className="text-emerald-600 dark:text-emerald-400" /> রক্তদাতার নাম
-            </label>
-            <input 
-              type="text" 
-              placeholder="পুরো নাম লিখুন"
-              className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600"
-              onChange={e => setNewDonor({...newDonor, name: e.target.value})} 
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
-            {/* Phone Field */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
-                <Phone size={12} className="text-emerald-600 dark:text-emerald-400" /> ফোন নাম্বার
+        <div className="flex-1 p-6 sm:p-12 space-y-8 overflow-y-auto overscroll-contain bg-slate-50/50 dark:bg-slate-900/50 transition-colors duration-300">
+          <div className="max-w-4xl mx-auto space-y-8">
+            {/* Name Field */}
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
+                <User size={14} className="text-emerald-600 dark:text-emerald-400" /> রক্তদাতার নাম
               </label>
               <input 
-                type="tel" 
-                placeholder="01xxxxxxxxx"
-                className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600"
-                value={newDonor.phone || ''}
-                onChange={e => {
-                  const val = e.target.value.replace(/\D/g, '');
-                  setNewDonor({...newDonor, phone: val});
-                }} 
+                type="text" 
+                placeholder="পুরো নাম লিখুন"
+                className="w-full px-6 py-4 rounded-[1.5rem] border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-8 focus:ring-emerald-500/5 outline-none transition-all text-lg text-slate-800 dark:text-slate-200 font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                onChange={e => setNewDonor({...newDonor, name: e.target.value})} 
               />
             </div>
 
-            {/* Blood Group */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
-                <Droplet size={12} className="text-red-500" /> রক্তের গ্রুপ
-              </label>
-              <div className="relative">
-                <select 
-                  className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 font-black appearance-none cursor-pointer" 
-                  onChange={e => setNewDonor({...newDonor, bloodGroup: e.target.value as BloodGroup})}
-                  defaultValue={BloodGroup.A_POS}
-                >
-                  {BLOOD_GROUPS_LIST.map(bg => <option key={bg} value={bg}>{bg}</option>)}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center px-5 pointer-events-none text-slate-400 dark:text-slate-500">
-                  <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
+              {/* Phone Field */}
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
+                  <Phone size={14} className="text-emerald-600 dark:text-emerald-400" /> ফোন নাম্বার
+                </label>
+                <input 
+                  type="tel" 
+                  placeholder="01xxxxxxxxx"
+                  className="w-full px-6 py-4 rounded-[1.5rem] border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-8 focus:ring-emerald-500/5 outline-none transition-all text-lg text-slate-800 dark:text-slate-200 font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                  value={newDonor.phone || ''}
+                  onChange={e => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    setNewDonor({...newDonor, phone: val});
+                  }} 
+                />
+              </div>
+
+              {/* Blood Group */}
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
+                  <Droplet size={14} className="text-red-500" /> রক্তের গ্রুপ
+                </label>
+                <div className="relative">
+                  <select 
+                    className="w-full px-6 py-4 rounded-[1.5rem] border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-8 focus:ring-emerald-500/5 outline-none transition-all text-lg text-slate-800 dark:text-slate-200 font-black appearance-none cursor-pointer" 
+                    onChange={e => setNewDonor({...newDonor, bloodGroup: e.target.value as BloodGroup})}
+                    defaultValue={BloodGroup.A_POS}
+                  >
+                    {BLOOD_GROUPS_LIST.map(bg => <option key={bg} value={bg}>{bg}</option>)}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center px-6 pointer-events-none text-slate-400 dark:text-slate-500">
+                    <svg className="w-5 h-5 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Location Field */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
-              <MapPin size={12} className="text-emerald-600 dark:text-emerald-400" /> লোকেশন/এলাকা
-            </label>
-            <input 
-              type="text" 
-              placeholder="যেমন: ঢাকা, মিরপুর"
-              className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600"
-              onChange={e => setNewDonor({...newDonor, location: e.target.value})} 
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6 pb-4">
-            {/* Last Donation Date */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
-                <Calendar size={12} className="text-emerald-600 dark:text-emerald-400" /> শেষ রক্তদান (ঐচ্ছিক)
+            {/* Location Field */}
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
+                <MapPin size={14} className="text-emerald-600 dark:text-emerald-400" /> লোকেশন/এলাকা
               </label>
               <input 
-                type="date" 
-                className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
-                onChange={e => setNewDonor({...newDonor, lastDonationDate: e.target.value})} 
+                type="text" 
+                placeholder="যেমন: ঢাকা, মিরপুর"
+                className="w-full px-6 py-4 rounded-[1.5rem] border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-8 focus:ring-emerald-500/5 outline-none transition-all text-lg text-slate-800 dark:text-slate-200 font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                onChange={e => setNewDonor({...newDonor, location: e.target.value})} 
               />
             </div>
 
-            {/* Total Donations */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
-                <Hash size={12} className="text-emerald-600 dark:text-emerald-400" /> মোট দান
-              </label>
-              <input 
-                type="number" 
-                placeholder="0"
-                className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600"
-                onChange={e => setNewDonor({...newDonor, totalDonations: parseInt(e.target.value) || 0})} 
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 pb-12">
+              {/* Last Donation Date */}
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
+                  <Calendar size={14} className="text-emerald-600 dark:text-emerald-400" /> শেষ রক্তদান (ঐচ্ছিক)
+                </label>
+                <input 
+                  type="date" 
+                  className="w-full px-6 py-4 rounded-[1.5rem] border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-8 focus:ring-emerald-500/5 outline-none transition-all text-lg text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+                  onChange={e => setNewDonor({...newDonor, lastDonationDate: e.target.value})} 
+                />
+              </div>
+
+              {/* Total Donations */}
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
+                  <Hash size={14} className="text-emerald-600 dark:text-emerald-400" /> মোট দান
+                </label>
+                <input 
+                  type="number" 
+                  placeholder="0"
+                  className="w-full px-6 py-4 rounded-[1.5rem] border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-8 focus:ring-emerald-500/5 outline-none transition-all text-lg text-slate-800 dark:text-slate-200 font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                  onChange={e => setNewDonor({...newDonor, totalDonations: parseInt(e.target.value) || 0})} 
+                />
+              </div>
             </div>
           </div>
         </div>
 
         {/* Footer Actions - Sticky */}
-        <div className="p-5 sm:p-6 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-3 shrink-0 transition-colors duration-300">
-          <motion.button 
-            whileHover={{ scale: 1.01, backgroundColor: '#059669' }}
-            whileTap={{ scale: 0.99 }}
-            onClick={handleAddNew} 
-            disabled={isSaving}
-            className="w-full bg-emerald-600 text-white py-3.5 rounded-2xl font-black shadow-lg shadow-emerald-500/10 dark:shadow-none transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-          >
-            {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-            সংরক্ষণ করুন
-          </motion.button>
-          <button 
-            onClick={onClose}
-            className="w-full py-1.5 text-slate-400 dark:text-slate-500 font-bold hover:text-slate-600 dark:hover:text-slate-400 transition-colors uppercase tracking-widest text-[8px] sm:text-[9px]"
-          >
-            বাতিল করুন
-          </button>
+        <div className="p-6 sm:p-8 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row gap-4 shrink-0 transition-colors duration-300">
+          <div className="max-w-4xl mx-auto w-full flex flex-col sm:flex-row gap-4">
+            <motion.button 
+              whileHover={{ scale: 1.01, backgroundColor: '#059669' }}
+              whileTap={{ scale: 0.99 }}
+              onClick={handleAddNew} 
+              disabled={isSaving}
+              className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-500/10 dark:shadow-none transition-all flex items-center justify-center gap-3 disabled:opacity-50 text-lg"
+            >
+              {isSaving ? <Loader2 className="animate-spin" size={24} /> : <Save size={24} />}
+              সংরক্ষণ করুন
+            </motion.button>
+            <button 
+              onClick={onClose}
+              className="flex-1 py-4 text-slate-400 dark:text-slate-500 font-bold hover:text-slate-600 dark:hover:text-slate-400 transition-colors uppercase tracking-widest text-xs sm:text-sm border-2 border-transparent hover:border-slate-100 dark:hover:border-slate-800 rounded-2xl"
+            >
+              বাতিল করুন
+            </button>
+          </div>
         </div>
       </motion.div>
       

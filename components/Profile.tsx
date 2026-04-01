@@ -157,11 +157,11 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[80] p-4">
+    <div className="fixed inset-0 bg-white dark:bg-slate-900 flex flex-col z-[80] overflow-hidden">
       <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/20 dark:border-slate-800 transition-colors duration-300"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="bg-white dark:bg-slate-900 w-full h-full flex flex-col overflow-hidden transition-colors duration-300"
       >
         {/* Header */}
         <div className="bg-gradient-to-br from-emerald-600 to-teal-700 dark:from-emerald-800 dark:to-teal-900 p-8 text-white relative overflow-hidden">
