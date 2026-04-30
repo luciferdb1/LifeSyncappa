@@ -6,7 +6,7 @@ import { getDonationAdvice } from '../services/geminiService';
 const AIChat: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'model', text: 'আসসালামু আলাইকুম! আমি রক্তদান সহকারী। রক্তদান সম্পর্কিত কোনো প্রশ্ন থাকলে আমাকে করতে পারেন।' }
+    { role: 'model', text: 'Assalamu Alaikum! I am the Blood Donation Assistant. If you have any questions related to blood donation, feel free to ask.' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,14 +42,14 @@ const AIChat: React.FC = () => {
           className="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-xl hover:bg-blue-700 transition-transform hover:scale-105 z-40 flex items-center"
         >
           <MessageCircle size={24} />
-          <span className="ml-2 font-semibold hidden md:inline">সাহায্য দরকার?</span>
+          <span className="ml-2 font-semibold hidden md:inline">Need help?</span>
         </button>
       )}
 
       {isOpen && (
         <div className="fixed bottom-6 right-6 w-[90vw] md:w-[350px] h-[500px] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl z-50 flex flex-col border border-gray-200 dark:border-slate-800 overflow-hidden transition-colors duration-300">
           <div className="bg-blue-600 dark:bg-blue-700 p-4 flex justify-between items-center text-white">
-            <h3 className="font-bold flex items-center"><MessageCircle size={18} className="mr-2"/> রক্তদান সহকারী</h3>
+            <h3 className="font-bold flex items-center"><MessageCircle size={18} className="mr-2"/> Blood Donation Assistant</h3>
             <button onClick={() => setIsOpen(false)} className="hover:bg-blue-500 dark:hover:bg-blue-600 p-1 rounded transition-colors"><X size={20}/></button>
           </div>
 
@@ -77,7 +77,7 @@ const AIChat: React.FC = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="এখানে প্রশ্ন লিখুন..."
+              placeholder="Type your question here..."
               className="flex-1 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 transition-colors duration-200"
             />
             <button 

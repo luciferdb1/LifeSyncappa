@@ -9,15 +9,11 @@
 
 body {
   font-family: var(--font-hind);
-  background-color: #ffffff;
-  color: #0f172a;
-  transition: background-color 0.3s ease, color 0.3s ease;
-  overflow-x: hidden;
+  @apply bg-slate-50 text-slate-900 transition-colors duration-300;
 }
 
 .dark body {
-  background-color: #020617;
-  color: #f8fafc;
+  @apply bg-slate-950 text-slate-50;
 }
 
 .font-hind {
@@ -28,63 +24,9 @@ body {
   font-family: var(--font-outfit);
 }
 
-/* GenZ Glassmorphism */
+/* Glassmorphism */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
-}
-
-.dark .glass-panel {
-  background: rgba(15, 23, 42, 0.8);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-/* Modern Gradients */
-.shishir-gradient {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-}
-
-.red-gradient {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-}
-
-/* Neumorphic subtle shadows */
-.soft-shadow {
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
-}
-
-/* Animated Background Shapes */
-.bg-blob {
-  position: fixed;
-  width: 500px;
-  height: 500px;
-  border-radius: 50%;
-  filter: blur(80px);
-  z-index: -1;
-  opacity: 0.4;
-  pointer-events: none;
-}
-
-.blob-green {
-  background: #10b981;
-  top: -100px;
-  right: -100px;
-  animation: float 20s infinite alternate;
-}
-
-.blob-red {
-  background: #ef4444;
-  bottom: -100px;
-  left: -100px;
-  animation: float 25s infinite alternate-reverse;
-}
-
-@keyframes float {
-  0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(50px, 50px) scale(1.1); }
+  @apply bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/20 dark:border-white/5 shadow-xl;
 }
 
 /* Custom Scrollbar */
@@ -97,14 +39,69 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #e2e8f0;
-  border-radius: 10px;
-}
-
-.dark ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  @apply bg-slate-200 dark:bg-slate-800 rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #cbd5e1;
+  @apply bg-slate-300 dark:bg-slate-700;
+}
+
+/* Global Animations for Interactions */
+button svg.lucide, a svg.lucide, .glass-panel svg.lucide {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.3s ease;
+}
+
+button:hover svg.lucide, a:hover svg.lucide {
+  transform: scale(1.15) rotate(-3deg);
+}
+
+button:active svg.lucide, a:active svg.lucide {
+  transform: scale(0.9);
+}
+
+/* Base button animations */
+button {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+/* Background Blobs */
+.bg-blob {
+  position: fixed;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  filter: blur(80px);
+  z-index: -1;
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+.blob-green {
+  @apply bg-emerald-500;
+  top: -100px;
+  right: -100px;
+}
+
+.blob-red {
+  @apply bg-red-500;
+  bottom: -100px;
+  left: -100px;
+}
+
+@keyframes gradient-xy {
+  0%, 100% {
+    background-size: 400% 400%;
+    background-position: left center;
+  }
+  50% {
+    background-size: 200% 200%;
+    background-position: right center;
+  }
+}
+
+.animate-gradient-xy {
+  animation: gradient-xy 3s ease infinite;
 }

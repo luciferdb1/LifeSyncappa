@@ -187,7 +187,7 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
             storagePath = fileName;
           }
 
-          const callerName = userData?.displayName || auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'Admin';
+          const callerName = userData?.displayName || auth.currentUser.displayName || 'Unknown User';
           
           await addDoc(collection(db, 'callRecords'), {
             callerUid: auth.currentUser.uid,
@@ -264,10 +264,10 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
           status === 'ended' ? 'bg-red-500/20 text-red-400' : 
           'bg-slate-800 text-slate-400'
         }`}>
-          {status === 'calling' && 'কল করা হচ্ছে...'}
-          {status === 'ringing' && 'রিং হচ্ছে...'}
+          {status === 'calling' && 'Calling...'}
+          {status === 'ringing' && 'Ringing...'}
           {status === 'connected' && formatTime(duration)}
-          {status === 'ended' && 'কল শেষ হয়েছে'}
+          {status === 'ended' && 'Call ended'}
         </div>
       </div>
 
@@ -280,14 +280,14 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
                 className={`w-16 h-16 rounded-full flex flex-col items-center justify-center transition-all duration-300 ${isMuted ? 'bg-white text-slate-900 scale-110 shadow-lg shadow-white/20' : 'bg-slate-800 text-white hover:bg-slate-700'}`}
               >
                 {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
-                <span className="text-[10px] mt-1 font-bold uppercase tracking-tighter">{isMuted ? 'আনমিউট' : 'মিউট'}</span>
+                <span className="text-[10px] mt-1 font-bold uppercase tracking-tighter">{isMuted ? 'Unmute' : 'Mute'}</span>
               </button>
               <button 
                 onClick={toggleSpeaker}
                 className={`w-16 h-16 rounded-full flex flex-col items-center justify-center transition-all duration-300 ${isSpeaker ? 'bg-white text-slate-900 scale-110 shadow-lg shadow-white/20' : 'bg-slate-800 text-white hover:bg-slate-700'}`}
               >
                 <Volume2 size={24} />
-                <span className="text-[10px] mt-1 font-bold uppercase tracking-tighter">স্পিকার</span>
+                <span className="text-[10px] mt-1 font-bold uppercase tracking-tighter">Speaker</span>
               </button>
             </div>
 
@@ -312,9 +312,9 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
               </div>
             </div>
             <div className="space-y-2">
-              <h3 className="text-2xl font-bold text-gray-900">রক্তদানে ইচ্ছুক?</h3>
+              <h3 className="text-2xl font-bold text-gray-900">Willing to donate blood?</h3>
               <p className="text-gray-600 text-sm leading-relaxed">
-                এডিটর <span className="font-bold text-emerald-600">{userData?.displayName || auth.currentUser?.displayName || 'Editor'}</span>, ডোনার কি রক্ত দিতে রাজি হয়েছেন? রাজি হয়ে থাকলে আপনি ৫ পয়েন্ট পাবেন।
+                <span className="font-bold text-emerald-600">{userData?.displayName || auth.currentUser?.displayName || 'User'}</span>, has the donor agreed to donate blood? If you are a volunteer, you will receive 5 points.
               </p>
             </div>
             <div className="flex flex-col gap-3 pt-2">
@@ -327,14 +327,14 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-emerald-200 transition-all active:scale-95 flex items-center justify-center gap-2"
               >
                 <Check size={20} />
-                হ্যাঁ, রাজি হয়েছেন
+                Yes, agreed
               </button>
               <button 
                 onClick={() => setShowRefusalInput(true)}
                 className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-4 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2"
               >
                 <X size={20} />
-                না, রাজি হননি
+                No, did not agree
               </button>
             </div>
           </div>
@@ -349,15 +349,15 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
               <X size={40} />
             </div>
             <div className="space-y-2">
-              <h3 className="text-2xl font-bold text-gray-900">অসম্মতির কারণ</h3>
+              <h3 className="text-2xl font-bold text-gray-900">Reason for refusal</h3>
               <p className="text-gray-600">
-                ডোনার কেন রাজি হননি তা সংক্ষেপে লিখুন।
+                Briefly write why the donor did not agree.
               </p>
             </div>
             <textarea
               value={refusalReason}
               onChange={(e) => setRefusalReason(e.target.value)}
-              placeholder="কারণ লিখুন..."
+              placeholder="Write the reason..."
               className="w-full p-4 border-2 border-gray-100 rounded-2xl focus:border-emerald-500 focus:outline-none transition-all resize-none h-32"
             />
             <div className="flex flex-col gap-3">
@@ -372,7 +372,7 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
                 disabled={!refusalReason.trim()}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-200 transition-all active:scale-95"
               >
-                সাবমিট করুন
+                Submit
               </button>
             </div>
           </div>

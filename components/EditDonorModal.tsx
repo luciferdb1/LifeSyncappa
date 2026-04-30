@@ -3,9 +3,10 @@ import { motion } from 'motion/react';
 import { Donor, BloodGroup } from '../types';
 import { X, Save, Trash2, AlertTriangle, Loader2, User, Phone, MapPin, Calendar, Droplet, Hash, Clock } from 'lucide-react';
 import { BLOOD_GROUPS_LIST } from '../constants';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { updateDoc, deleteDoc, doc, getDoc, increment, collection, query, where, getDocs } from 'firebase/firestore';
 import { logActivity } from '../services/logService';
+import { syncDonorToGoogleSheet } from '../services/googleSheetsService';
 import DonorHistoryModal from './DonorHistoryModal';
 
 interface EditDonorModalProps {
@@ -16,6 +17,92 @@ interface EditDonorModalProps {
   isAdmin: boolean;
 }
 
+// Add the SearchableSelect component outside the main function
+const SearchableSelect = ({ 
+  options, 
+  value, 
+  onChange, 
+  placeholder, 
+  icon: Icon
+}: { 
+  options: string[], 
+  value: string, 
+  onChange: (val: string) => void, 
+  placeholder: string,
+  icon?: any
+}) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setSearchTerm(value);
+  }, [value]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        if (!options.includes(searchTerm)) {
+          setSearchTerm(value);
+        }
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [wrapperRef, options, searchTerm, value]);
+
+  const filteredOptions = options.filter(opt => 
+    opt.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <div className="relative">
+        <input
+          type="text"
+          className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-sm text-slate-800 dark:text-slate-200 font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600 cursor-text"
+          placeholder={placeholder}
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setIsOpen(true);
+            if (e.target.value === '') {
+              onChange('');
+            }
+          }}
+          onFocus={() => setIsOpen(true)}
+        />
+        <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-400 dark:text-slate-500">
+           <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+        </div>
+      </div>
+      
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-60 overflow-y-auto hidden-scrollbar">
+          {filteredOptions.length > 0 ? (
+            filteredOptions.map((opt, i) => (
+              <div
+                key={i}
+                className="px-4 py-2.5 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 cursor-pointer text-slate-700 dark:text-slate-300 text-sm font-medium transition-colors"
+                onClick={() => {
+                  setSearchTerm(opt);
+                  onChange(opt);
+                  setIsOpen(false);
+                }}
+              >
+                {opt}
+              </div>
+            ))
+          ) : (
+            <div className="px-4 py-3 text-slate-400 text-sm text-center">No results found</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const EditDonorModal: React.FC<EditDonorModalProps> = ({ donor, onClose, onUpdate, onDelete, isAdmin }) => {
   const [form, setForm] = useState<Partial<Donor>>({ ...donor });
   const [isSaving, setIsSaving] = useState(false);
@@ -23,14 +110,73 @@ const EditDonorModal: React.FC<EditDonorModalProps> = ({ donor, onClose, onUpdat
   const [showHistory, setShowHistory] = useState(false);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
 
+  // States for districts/upazilas
+  const [districts, setDistricts] = useState<{district: string, districtbn: string}[]>([]);
+  const [upazilas, setUpazilas] = useState<{upazila: string, upazilabn: string}[]>([]);
+  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [selectedUpazila, setSelectedUpazila] = useState('');
+
+  // Setup initial location data
+  useEffect(() => {
+    if (donor.location) {
+      const parts = donor.location.split(', ');
+      if (parts.length === 2) {
+        setSelectedUpazila(parts[0]);
+        setSelectedDistrict(parts[1]);
+      } else {
+        setSelectedDistrict(donor.location);
+      }
+    }
+  }, [donor]);
+
+  useEffect(() => {
+    fetch('https://bdapis.com/api/v1.1/districts')
+      .then(res => res.json())
+      .then(data => {
+         if (data?.data) {
+           const sorted = data.data.sort((a: any, b: any) => a.district.localeCompare(b.district));
+           setDistricts(sorted);
+         }
+      })
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    if (selectedDistrict) {
+      fetch(`https://bdapis.com/api/v1.1/district/${selectedDistrict.toLowerCase()}`)
+        .then(res => res.json())
+        .then(data => {
+           if (data?.data && data.data.length > 0) {
+             const distData = data.data[0];
+             if (distData.upazillas) {
+                setUpazilas(distData.upazillas);
+             } else {
+                setUpazilas([]);
+             }
+           }
+        })
+        .catch(console.error);
+    } else {
+      setUpazilas([]);
+    }
+  }, [selectedDistrict]);
+
+  useEffect(() => {
+    if (selectedDistrict && selectedUpazila) {
+      setForm(prev => ({...prev, location: `${selectedUpazila}, ${selectedDistrict}`}));
+    } else if (selectedDistrict) {
+      setForm(prev => ({...prev, location: selectedDistrict}));
+    }
+  }, [selectedDistrict, selectedUpazila]);
+
   const handleSave = async () => {
     if (!form.name || !form.phone || !form.location) {
-      alert("দয়া করে প্রয়োজনীয় সকল তথ্য পূরণ করুন (নাম, ফোন, লোকেশন)");
+      alert("Please fill in all required information (Name, Phone, Location)");
       return;
     }
 
     if (!form.phone.startsWith('01') || form.phone.length !== 11) {
-      alert("সঠিক ১১ ডিজিটের ফোন নাম্বার দিন (যেমন: 01xxxxxxxxx)");
+      alert("Please enter a valid 11-digit phone number (e.g., 01xxxxxxxxx)");
       return;
     }
 
@@ -83,27 +229,33 @@ const EditDonorModal: React.FC<EditDonorModalProps> = ({ donor, onClose, onUpdat
 
       await updateDoc(donorRef, { ...updateData });
       
-      await logActivity(donor.id, 'update', form.name, 'দাতার তথ্য আপডেট করা হয়েছে');
+      await logActivity(donor.id, 'update', form.name, 'Donor information updated');
 
       // Leaderboard Logic: Award points to the volunteer who added the donor
       if (isDonationCompleted && donor.addedBy) {
         const volunteerRef = doc(db, 'users', donor.addedBy);
         const volunteerSnap = await getDoc(volunteerRef);
-        if (volunteerSnap.exists()) {
+        if (volunteerSnap.exists() && volunteerSnap.data().role === 'volunteer') {
+          const isOwnDonor = donor.addedBy === auth.currentUser?.uid;
+          const pointsToAdd = isOwnDonor ? 10 : 5;
+          const pointsField = isOwnDonor ? 'pointsFromOwnDonors' : 'pointsFromOtherDonors';
           await updateDoc(volunteerRef, {
-            points: increment(10)
+            points: increment(pointsToAdd),
+            [pointsField]: increment(pointsToAdd)
           });
         }
       }
+
+      await syncDonorToGoogleSheet('update', { id: donor.id, ...updateData });
       
       onUpdate();
       onClose();
     } catch (error: any) {
       console.error("Error updating donor:", error);
-      let errorMessage = "তথ্য আপডেট করতে সমস্যা হয়েছে।";
+      let errorMessage = "Error updating information.";
       
       if (error.message && error.message.includes('permission-denied')) {
-        errorMessage = "আপনার এই তথ্য পরিবর্তন করার অনুমতি নেই।";
+        errorMessage = "You do not have permission to change this information.";
       }
       
       alert(errorMessage);
@@ -118,7 +270,8 @@ const EditDonorModal: React.FC<EditDonorModalProps> = ({ donor, onClose, onUpdat
     try {
       await deleteDoc(doc(db, 'donors', donor.id));
       
-      await logActivity(donor.id, 'delete', donor.name, 'দাতার তথ্য মুছে ফেলা হয়েছে');
+      await logActivity(donor.id, 'delete', donor.name, 'Donor information deleted');
+      await syncDonorToGoogleSheet('soft_delete', { id: donor.id });
       
       onDelete();
       onClose();
@@ -130,104 +283,86 @@ const EditDonorModal: React.FC<EditDonorModalProps> = ({ donor, onClose, onUpdat
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+    <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900 transition-colors duration-300">
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.1 }}
-        className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh] sm:max-h-[85vh] transition-colors duration-300"
+        className="w-full h-full flex flex-col overflow-hidden"
       >
         {/* Header - Sticky */}
-        <div className="bg-emerald-900 dark:bg-slate-950 p-5 sm:p-6 text-white flex justify-between items-center shrink-0 transition-colors duration-300">
-          <div className="flex items-center gap-3">
-            <div className="bg-white/10 p-2.5 rounded-2xl shadow-inner border border-white/10">
-              <User size={22} className="text-emerald-300" />
+        <div className="bg-emerald-900 dark:bg-slate-950 p-4 sm:p-5 text-white flex justify-between items-center shrink-0 transition-colors duration-300">
+          <div className="flex items-center gap-2">
+            <div className="bg-white/10 p-2 rounded-xl shadow-inner border border-white/10">
+              <User size={18} className="text-emerald-300" />
             </div>
             <div>
-              <h3 className="text-lg sm:text-xl font-black tracking-tight">দাতার তথ্য পরিবর্তন</h3>
-              <p className="text-emerald-200/60 text-[8px] sm:text-[9px] font-black uppercase tracking-widest mt-0.5">তথ্যগুলো সঠিক কিনা যাচাই করে নিন</p>
+              <h3 className="text-base sm:text-lg font-black tracking-tight">Edit Donor Information</h3>
+              <p className="text-emerald-200/60 text-[8px] font-black uppercase tracking-widest mt-0.5">Verify that the information is correct</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <motion.button 
               whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.1)' }}
               whileTap={{ scale: 0.9 }}
               onClick={() => setShowHistory(true)}
-              className="p-2.5 rounded-2xl transition-all text-emerald-300"
-              title="অ্যাক্টিভিটি লগ"
+              className="p-2 rounded-xl transition-all text-emerald-300"
+              title="Activity Log"
             >
-              <Clock size={20} />
+              <Clock size={18} />
             </motion.button>
             <motion.button 
               whileHover={{ scale: 1.1, rotate: 90, backgroundColor: 'rgba(255,255,255,0.1)' }}
               whileTap={{ scale: 0.9 }}
               onClick={onClose} 
-              className="p-2.5 rounded-2xl transition-all"
+              className="p-2 rounded-xl transition-all"
             >
-              <X size={20} />
+              <X size={18} />
             </motion.button>
           </div>
         </div>
 
-        <div className="flex-1 p-5 sm:p-8 space-y-6 overflow-y-auto overscroll-contain bg-slate-50/50 dark:bg-slate-900/50 transition-colors duration-300">
+        <div className="flex-1 p-4 sm:p-5 space-y-4 overflow-y-auto overscroll-contain bg-slate-50/50 dark:bg-slate-900/50 transition-colors duration-300">
           {/* Name Field */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
-              <User size={12} className="text-emerald-600 dark:text-emerald-400" /> রক্তদাতার নাম
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-1.5 text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
+              <User size={10} className="text-emerald-600 dark:text-emerald-400" /> Donor Name
             </label>
             <input 
               type="text" 
               value={form.name}
               onChange={e => setForm({...form, name: e.target.value})}
-              className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600"
-              placeholder="পুরো নাম লিখুন"
+              className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 text-sm font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600"
+              placeholder="Enter full name"
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Blood Group */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
-                <Droplet size={12} className="text-red-500" /> রক্তের গ্রুপ
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
+                <Droplet size={10} className="text-red-500" /> Blood Group
               </label>
               <div className="relative">
                 <select 
                   value={form.bloodGroup}
                   onChange={e => setForm({...form, bloodGroup: e.target.value as BloodGroup})}
-                  className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 font-black appearance-none cursor-pointer"
+                  className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 text-sm font-black appearance-none cursor-pointer"
                 >
                   {BLOOD_GROUPS_LIST.map(bg => <option key={bg} value={bg}>{bg}</option>)}
                 </select>
-                <div className="absolute inset-y-0 right-0 flex items-center px-5 pointer-events-none text-slate-400 dark:text-slate-500">
+                <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-400 dark:text-slate-500">
                   <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
                 </div>
               </div>
             </div>
-
-            {/* Availability */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
-                <AlertTriangle size={12} className="text-amber-500" /> স্ট্যাটাস
-              </label>
-              <button 
-                onClick={() => setForm({...form, isAvailable: !form.isAvailable})}
-                className={`w-full px-5 py-3.5 rounded-2xl border-2 transition-all font-black flex items-center justify-center gap-3 ${
-                  form.isAvailable 
-                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-400 shadow-sm' 
-                  : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
-                }`}
-              >
-                <div className={`w-2.5 h-2.5 rounded-full ${form.isAvailable ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400 dark:bg-slate-600'}`} />
-                {form.isAvailable ? 'অ্যাভেইলেবল' : 'অ্যাভেইলেবল নয়'}
-              </button>
-            </div>
           </div>
 
           {/* Phone Field */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
-              <Phone size={12} className="text-emerald-600 dark:text-emerald-400" /> ফোন নাম্বার
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-1.5 text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
+              <Phone size={10} className="text-emerald-600 dark:text-emerald-400" /> Phone Number
             </label>
             <input 
               type="tel" 
@@ -236,66 +371,95 @@ const EditDonorModal: React.FC<EditDonorModalProps> = ({ donor, onClose, onUpdat
                 const val = e.target.value.replace(/\D/g, '');
                 setForm({...form, phone: val});
               }}
-              className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600"
+              className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 text-sm font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600"
               placeholder="01xxxxxxxxx"
             />
           </div>
 
           {/* Location Field */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
-              <MapPin size={12} className="text-emerald-600 dark:text-emerald-400" /> লোকেশন/এলাকা
-            </label>
-            <input 
-              type="text" 
-              value={form.location}
-              onChange={e => setForm({...form, location: e.target.value})}
-              className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600"
-              placeholder="যেমন: ঢাকা, মিরপুর"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
+                <MapPin size={10} className="text-emerald-600 dark:text-emerald-400" /> District
+              </label>
+              <SearchableSelect 
+                options={districts.map(d => d.district)}
+                value={selectedDistrict}
+                onChange={(val) => {
+                  setSelectedDistrict(val);
+                  setSelectedUpazila('');
+                }}
+                placeholder="Select District"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
+                <MapPin size={10} className="text-teal-600 dark:text-teal-400" /> Upazila / Area
+              </label>
+              <div className="relative">
+                {upazilas.length > 0 ? (
+                  <SearchableSelect 
+                    options={upazilas.map(u => u.upazila)}
+                    value={selectedUpazila}
+                    onChange={setSelectedUpazila}
+                    placeholder="Select Upazila"
+                  />
+                ) : (
+                  <input 
+                    type="text" 
+                    placeholder="e.g., Mirpur (Select District first)"
+                    disabled={!selectedDistrict}
+                    className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 text-sm font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600 disabled:opacity-50"
+                    value={selectedUpazila}
+                    onChange={e => setSelectedUpazila(e.target.value)}
+                  />
+                )}
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6 pb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-2">
             {/* Last Donation Date */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
-                <Calendar size={12} className="text-emerald-600 dark:text-emerald-400" /> শেষ রক্তদান (ঐচ্ছিক)
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
+                <Calendar size={10} className="text-emerald-600 dark:text-emerald-400" /> Last Donation (Optional)
               </label>
               <input 
                 type="date" 
                 value={form.lastDonationDate || ''}
                 onChange={e => setForm({...form, lastDonationDate: e.target.value})}
-                className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+                className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 text-sm font-bold cursor-pointer"
               />
             </div>
 
             {/* Total Donations */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
-                <Hash size={12} className="text-emerald-600 dark:text-emerald-400" /> মোট দান
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1">
+                <Hash size={10} className="text-emerald-600 dark:text-emerald-400" /> Total Donations
               </label>
               <input 
                 type="number" 
                 value={form.totalDonations}
                 onChange={e => setForm({...form, totalDonations: parseInt(e.target.value) || 0})}
-                className="w-full px-5 py-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-emerald-500 dark:focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all text-slate-800 dark:text-slate-200 text-sm font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600"
               />
             </div>
           </div>
         </div>
 
         {/* Footer Actions - Sticky */}
-        <div className="p-5 sm:p-6 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-3 shrink-0 transition-colors duration-300">
-          <div className="flex gap-3">
+        <div className="mt-auto p-4 sm:p-5 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2 shrink-0 transition-colors duration-300 w-full z-50">
+          <div className="flex gap-2">
             <motion.button 
               whileHover={{ scale: 1.01, backgroundColor: '#059669' }}
               whileTap={{ scale: 0.99 }}
               onClick={handleSave}
               disabled={isSaving}
-              className="flex-1 bg-emerald-600 text-white py-3.5 rounded-2xl font-black shadow-lg shadow-emerald-500/10 dark:shadow-none transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+              className="flex-1 bg-emerald-600 text-white py-3 rounded-xl text-sm font-black shadow-lg shadow-emerald-500/10 dark:shadow-none transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-              তথ্য সেভ করুন
+              {isSaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+              Save Information
             </motion.button>
             
             {isAdmin && (
@@ -304,18 +468,18 @@ const EditDonorModal: React.FC<EditDonorModalProps> = ({ donor, onClose, onUpdat
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowDeleteConfirm(true)}
                 disabled={isSaving}
-                className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3.5 rounded-2xl transition-all border border-red-100 dark:border-red-900/30 disabled:opacity-50"
-                title="মুছে ফেলুন"
+                className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-xl transition-all border border-red-100 dark:border-red-900/30 disabled:opacity-50"
+                title="Delete"
               >
-                <Trash2 size={20} />
+                <Trash2 size={18} />
               </motion.button>
             )}
           </div>
           <button 
             onClick={onClose}
-            className="w-full py-1.5 text-slate-400 dark:text-slate-500 font-bold hover:text-slate-600 dark:hover:text-slate-400 transition-colors uppercase tracking-widest text-[8px] sm:text-[9px]"
+            className="w-full py-1 text-slate-400 dark:text-slate-500 font-bold hover:text-slate-600 dark:hover:text-slate-400 transition-colors uppercase tracking-widest text-[8px]"
           >
-            বাতিল করুন
+            Cancel
           </button>
         </div>
       </motion.div>
@@ -323,27 +487,27 @@ const EditDonorModal: React.FC<EditDonorModalProps> = ({ donor, onClose, onUpdat
       {/* Delete Confirmation Overlay */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-[80] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-xs overflow-hidden border border-red-100 dark:border-red-900/30 animate-in zoom-in-95 duration-200 transition-colors duration-300">
-            <div className="bg-red-50 dark:bg-red-900/20 p-6 flex flex-col items-center text-center">
-              <div className="bg-white dark:bg-slate-800 p-3 rounded-full mb-4 shadow-sm">
-                <AlertTriangle className="text-red-500" size={32} />
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden border border-red-100 dark:border-red-900/30 animate-in zoom-in-95 duration-200 transition-colors duration-300">
+            <div className="bg-red-50 dark:bg-red-900/20 p-5 flex flex-col items-center text-center">
+              <div className="bg-white dark:bg-slate-800 p-2.5 rounded-full mb-3 shadow-sm">
+                <AlertTriangle className="text-red-500" size={24} />
               </div>
-              <h4 className="text-lg font-bold text-gray-900 dark:text-slate-200 mb-1">আপনি কি নিশ্চিত?</h4>
-              <p className="text-gray-500 dark:text-slate-400 text-sm">এই দাতার সকল তথ্য চিরতরে মুছে যাবে।</p>
+              <h4 className="text-base font-bold text-gray-900 dark:text-slate-200 mb-1">Are you sure?</h4>
+              <p className="text-gray-500 dark:text-slate-400 text-xs">All information about this donor will be permanently deleted.</p>
             </div>
             <div className="p-4 flex flex-col gap-2">
               <button 
                 onClick={handleDelete}
                 disabled={isSaving}
-                className="w-full bg-red-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-red-100 dark:shadow-none hover:bg-red-700 transition-all active:scale-95 disabled:opacity-50"
+                className="w-full bg-red-600 text-white py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-red-100 dark:shadow-none hover:bg-red-700 transition-all active:scale-95 disabled:opacity-50"
               >
-                {isSaving ? 'মুছছে...' : 'হ্যাঁ, মুছে ফেলুন'}
+                {isSaving ? 'Deleting...' : 'Yes, delete'}
               </button>
               <button 
                 onClick={() => setShowDeleteConfirm(false)}
-                className="w-full py-3 text-gray-500 dark:text-slate-400 font-medium hover:bg-gray-50 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                className="w-full py-2.5 text-gray-500 dark:text-slate-400 text-sm font-medium hover:bg-gray-50 dark:hover:bg-slate-800 rounded-xl transition-colors"
               >
-                না, ফিরে যান
+                No, go back
               </button>
             </div>
           </div>
@@ -364,21 +528,21 @@ const EditDonorModal: React.FC<EditDonorModalProps> = ({ donor, onClose, onUpdat
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-xs overflow-hidden border border-amber-100 dark:border-amber-900/30 transition-colors duration-300"
+            className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden border border-amber-100 dark:border-amber-900/30 transition-colors duration-300"
           >
-            <div className="bg-amber-50 dark:bg-amber-900/20 p-6 flex flex-col items-center text-center">
-              <div className="bg-white dark:bg-slate-800 p-3 rounded-full mb-4 shadow-sm">
-                <AlertTriangle className="text-amber-500" size={32} />
+            <div className="bg-amber-50 dark:bg-amber-900/20 p-5 flex flex-col items-center text-center">
+              <div className="bg-white dark:bg-slate-800 p-2.5 rounded-full mb-3 shadow-sm">
+                <AlertTriangle className="text-amber-500" size={24} />
               </div>
-              <h4 className="text-lg font-black text-slate-800 dark:text-slate-200 mb-1 tracking-tight">ডুপ্লিকেট নাম্বার!</h4>
-              <p className="text-slate-500 dark:text-slate-400 text-xs font-bold leading-relaxed">ইতোমধ্যে এই ডোনার যুক্ত আছে।</p>
+              <h4 className="text-base font-black text-slate-800 dark:text-slate-200 mb-1 tracking-tight">Duplicate Number!</h4>
+              <p className="text-slate-500 dark:text-slate-400 text-[10px] font-bold leading-relaxed">This donor is already added.</p>
             </div>
             <div className="p-4">
               <button 
                 onClick={() => setShowDuplicateWarning(false)}
-                className="w-full bg-amber-500 text-white py-3 rounded-xl font-black shadow-lg shadow-amber-100 dark:shadow-none hover:bg-amber-600 transition-all active:scale-95"
+                className="w-full bg-amber-500 text-white py-2.5 rounded-xl text-sm font-black shadow-lg shadow-amber-100 dark:shadow-none hover:bg-amber-600 transition-all active:scale-95"
               >
-                ঠিক আছে
+                OK
               </button>
             </div>
           </motion.div>

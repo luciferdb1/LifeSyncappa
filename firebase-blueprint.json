@@ -105,6 +105,17 @@
         "payload": { "type": "string" }
       },
       "required": ["facebookId", "senderName", "timestamp", "status"]
+    },
+    "OTP": {
+      "title": "OTP",
+      "description": "One-Time Passwords for verification",
+      "type": "object",
+      "properties": {
+        "otp": { "type": "string" },
+        "expiresAt": { "type": "string" },
+        "used": { "type": "boolean" }
+      },
+      "required": ["otp", "expiresAt"]
     }
   },
   "firestore": {
@@ -131,6 +142,10 @@
     "/facebookRequests/{requestId}": {
       "schema": "FacebookRequest",
       "description": "Facebook blood requests collection"
+    },
+    "/otps/{email}": {
+      "schema": "OTP",
+      "description": "OTPs collection"
     }
   }
 }

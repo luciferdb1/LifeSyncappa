@@ -1,20 +1,60 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, onSnapshot, doc, updateDoc, query, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, query, deleteDoc, getDocs, getDoc } from 'firebase/firestore';
 import { logActivity } from '../services/logService';
-import { Request } from '../types';
-import { ClipboardList, Check, X, Loader2, Trash2, MessageSquare, Clock } from 'lucide-react';
+import { Request, UserProfile, Donor } from '../types';
+import { ClipboardList, Check, X, Loader2, Trash2, MessageSquare, Clock, User, AlertCircle } from 'lucide-react';
+import UserProfileModal from './UserProfileModal';
+import DonorCard from './DonorCard';
 
 interface RequestManagerProps {
   onClose: () => void;
+  onEditDonor?: (donor: Donor) => void;
 }
 
-const RequestManager: React.FC<RequestManagerProps> = ({ onClose }) => {
+const RequestManager: React.FC<RequestManagerProps> = ({ onClose, onEditDonor }) => {
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [deleteRequestId, setDeleteRequestId] = useState<string | null>(null);
+  const [usersMap, setUsersMap] = useState<Record<string, UserProfile>>({});
+  const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
+  const [selectedDonor, setSelectedDonor] = useState<Donor | null>(null);
+  const [loadingDonor, setLoadingDonor] = useState(false);
+
+  const handleDonorClick = async (donorId: string) => {
+    setLoadingDonor(true);
+    try {
+      const docRef = doc(db, 'donors', donorId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setSelectedDonor({ id: docSnap.id, ...docSnap.data() } as Donor);
+      } else {
+        alert("Donor not found or has been deleted.");
+      }
+    } catch (error) {
+      console.error("Error fetching donor", error);
+      alert("Failed to load donor details.");
+    } finally {
+      setLoadingDonor(false);
+    }
+  };
 
   useEffect(() => {
+    // Fetch users for mapping userUid to profile
+    const fetchUsers = async () => {
+      try {
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        const map: Record<string, UserProfile> = {};
+        usersSnapshot.forEach(userDoc => {
+          map[userDoc.id] = userDoc.data() as UserProfile;
+        });
+        setUsersMap(map);
+      } catch (error) {
+        console.error("Error fetching users for request manager:", error);
+      }
+    };
+    fetchUsers();
     const q = query(collection(db, 'requests'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const requestList: Request[] = [];
@@ -29,8 +69,10 @@ const RequestManager: React.FC<RequestManagerProps> = ({ onClose }) => {
       });
       setRequests(requestList);
       setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'requests');
+    }, (error: any) => {
+      if (error?.code !== 'permission-denied' && !error?.message?.includes('Missing or insufficient permissions')) {
+        handleFirestoreError(error, OperationType.LIST, 'requests');
+      }
       setLoading(false);
     });
 
@@ -48,7 +90,7 @@ const RequestManager: React.FC<RequestManagerProps> = ({ onClose }) => {
           request.donorId, 
           'update', 
           request.donorName, 
-          `অনুরোধ ${newStatus === 'approved' ? 'গৃহীত' : 'প্রত্যাখ্যাত'} হয়েছে (অনুরোধ টাইপ: ${request.type === 'edit' ? 'সংশোধন' : 'মুছে ফেলা'})`
+          `Request ${newStatus === 'approved' ? 'approved' : 'rejected'} (Request type: ${request.type === 'edit' ? 'edit' : 'delete'})`
         );
       }
     } catch (error) {
@@ -58,131 +100,144 @@ const RequestManager: React.FC<RequestManagerProps> = ({ onClose }) => {
     }
   };
 
-  const handleDeleteRequest = async (requestId: string) => {
-    if (!window.confirm("আপনি কি এই অনুরোধটি মুছে ফেলতে চান?")) return;
-    setProcessingId(requestId);
+  const handleDeleteRequest = async () => {
+    if (!deleteRequestId) return;
+    setProcessingId(deleteRequestId);
     try {
-      await deleteDoc(doc(db, 'requests', requestId));
+      await deleteDoc(doc(db, 'requests', deleteRequestId));
+      setDeleteRequestId(null);
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `requests/${requestId}`);
+      handleFirestoreError(error, OperationType.DELETE, `requests/${deleteRequestId}`);
     } finally {
       setProcessingId(null);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-white dark:bg-slate-900 flex flex-col z-[70] overflow-hidden">
-      <div className="bg-white dark:bg-slate-900 w-full h-full flex flex-col overflow-hidden animate-in fade-in duration-300 transition-colors duration-300">
-        <div className="bg-blue-900 dark:bg-slate-950 p-6 text-white flex justify-between items-center transition-colors duration-300">
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <ClipboardList size={20} />
-            অনুরোধ ব্যবস্থাপনা
+    <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900 transition-colors duration-300">
+      <div className="w-full h-full flex flex-col overflow-hidden animate-in fade-in duration-300">
+        <div className="bg-blue-900 dark:bg-slate-950 p-4 text-white flex justify-between items-center transition-colors duration-300">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <ClipboardList size={18} />
+            Request Management
           </h2>
           <button onClick={onClose} className="p-1 hover:bg-blue-800 dark:hover:bg-slate-800 rounded-full transition-colors">
             <X size={20} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-50 dark:bg-slate-900 transition-colors duration-300 pb-32">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-slate-50 dark:bg-slate-900 transition-colors duration-300 pb-32">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-full">
               <Loader2 className="animate-spin text-blue-600 dark:text-blue-400 mb-2" size={32} />
-              <p className="text-gray-500 dark:text-slate-400">লোড হচ্ছে...</p>
+              <p className="text-gray-500 dark:text-slate-400">Loading...</p>
             </div>
           ) : requests.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-slate-500">
               <ClipboardList size={64} className="opacity-20 mb-4" />
-              <p>কোনো অনুরোধ পাওয়া যায়নি</p>
+              <p>No requests found</p>
             </div>
           ) : (
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden transition-colors duration-300">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[800px]">
-                  <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-slate-950 border-b border-gray-100 dark:border-slate-800 shadow-sm transition-colors duration-300">
-                    <tr className="text-gray-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
-                      <th className="p-4">রিকোয়েস্টের ধরন</th>
-                      <th className="p-4">ডোনার ও ইউজার</th>
-                      <th className="p-4">বিস্তারিত</th>
-                      <th className="p-4 text-center">স্ট্যাটাস</th>
-                      <th className="p-4 text-center">অ্যাকশন</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-                    {requests.map((req, index) => (
-                      <tr key={req.id} className={`hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors ${index % 2 === 0 ? 'bg-white dark:bg-slate-800' : 'bg-gray-50/50 dark:bg-slate-900/50'}`}>
-                        <td className="p-4 align-top">
-                          <div className="flex flex-col gap-2">
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider w-fit ${
-                              req.type === 'edit' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                            }`}>
-                              {req.type === 'edit' ? 'সংশোধন' : 'মুছে ফেলা'}
-                            </span>
-                            <span className="text-[10px] text-gray-400 dark:text-slate-500 flex items-center gap-1">
-                              <Clock size={10} /> {new Date(req.createdAt).toLocaleDateString('bn-BD')}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="p-4 align-top">
-                          <h3 className="font-bold text-gray-800 dark:text-slate-200 mb-1">{req.donorName}</h3>
-                          <p className="text-xs text-gray-500 dark:text-slate-500 flex items-center gap-1">
-                            <MessageSquare size={12} /> {req.userEmail}
-                          </p>
-                        </td>
-                        <td className="p-4 align-top">
-                          <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl text-sm text-gray-700 dark:text-slate-300 border border-slate-100 dark:border-slate-800 max-w-xs break-words">
-                            {req.details}
-                          </div>
-                        </td>
-                        <td className="p-4 align-top text-center">
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider inline-block ${
-                            req.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400' : 
-                            req.status === 'approved' ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : 
-                            'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-                          }`}>
-                            {req.status === 'pending' ? 'অপেক্ষমান' : req.status === 'approved' ? 'গৃহীত' : 'প্রত্যাখ্যাত'}
-                          </span>
-                        </td>
-                        <td className="p-4 align-top">
-                          <div className="flex flex-col sm:flex-row justify-center gap-2">
-                            {req.status === 'pending' && (
-                              <>
-                                <button
-                                  disabled={processingId === req.id}
-                                  onClick={() => handleStatusChange(req.id, 'approved')}
-                                  className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                  title="Approve"
-                                >
-                                  {processingId === req.id ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-                                </button>
-                                <button
-                                  disabled={processingId === req.id}
-                                  onClick={() => handleStatusChange(req.id, 'rejected')}
-                                  className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                  title="Reject"
-                                >
-                                  {processingId === req.id ? <Loader2 size={18} className="animate-spin" /> : <X size={18} />}
-                                </button>
-                              </>
-                            )}
-                            <button
-                              disabled={processingId === req.id}
-                              onClick={() => handleDeleteRequest(req.id)}
-                              className="bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 p-2 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                              title="Delete Request"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {requests.map((req, index) => (
+                <div key={req.id} className="bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-sm border border-emerald-100 dark:border-slate-700 flex flex-col transition-all hover:shadow-md hover:border-emerald-200 dark:hover:border-slate-600 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 dark:bg-emerald-900/10 rounded-bl-[100px] -z-10 group-hover:scale-110 transition-transform"></div>
+                  
+                  <div className="flex justify-between items-start mb-4">
+                    <span className={`text-[10px] px-2.5 py-1 rounded-lg font-black uppercase tracking-widest ${
+                      req.type === 'edit' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                    }`}>
+                      {req.type === 'edit' ? 'Edit Request' : 'Delete Request'}
+                    </span>
+                    <span className={`text-[10px] px-2.5 py-1 rounded-lg font-black uppercase tracking-widest ${
+                      req.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' : 
+                      req.status === 'approved' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 
+                      'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
+                    }`}>
+                      {req.status === 'pending' ? 'Pending' : req.status === 'approved' ? 'Approved' : 'Rejected'}
+                    </span>
+                  </div>
+
+                  <h3 
+                    className="text-lg font-black text-slate-800 dark:text-white mb-1 cursor-pointer hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                    onClick={() => handleDonorClick(req.donorId)}
+                  >
+                    {req.donorName}
+                  </h3>
+                  
+                  <div className="flex items-center gap-2 mb-4">
+                    <button 
+                      onClick={() => {
+                        const profile = usersMap[req.userUid];
+                        if (profile) setSelectedProfile(profile);
+                      }}
+                      className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1 font-bold bg-slate-50 dark:bg-slate-900/50 px-2 py-1 rounded-md transition-colors"
+                    >
+                      <User size={12} /> {usersMap[req.userUid]?.displayName || req.userEmail}
+                    </button>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1 font-bold">
+                      <Clock size={10} /> {new Date(req.createdAt).toLocaleDateString('en-US')}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-2xl text-xs text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-800 mb-5 flex-1 line-clamp-4">
+                    {req.details}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 mt-auto pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex gap-2">
+                       {req.status === 'pending' && (
+                        <>
+                          <button
+                            disabled={processingId === req.id}
+                            onClick={() => handleStatusChange(req.id, 'approved')}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-xl shadow-md transition-all flex items-center justify-center disabled:opacity-50"
+                            title="Approve"
+                          >
+                            {processingId === req.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                          </button>
+                          <button
+                            disabled={processingId === req.id}
+                            onClick={() => handleStatusChange(req.id, 'rejected')}
+                            className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-xl shadow-md transition-all flex items-center justify-center disabled:opacity-50"
+                            title="Reject"
+                          >
+                            {processingId === req.id ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
       </div>
+      
+      {/* Donor Card Modal */}
+      {selectedDonor && (
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+          <div className="bg-slate-50 dark:bg-slate-900 rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto relative animate-in zoom-in-95 duration-300 p-4">
+            <button 
+              onClick={() => setSelectedDonor(null)} 
+              className="absolute top-6 right-6 z-10 bg-white dark:bg-slate-800 p-2 rounded-full shadow-lg text-slate-500 hover:text-red-500 transition-colors"
+            >
+              <X size={16} />
+            </button>
+            <DonorCard 
+              donor={selectedDonor} 
+              onNameClick={() => {}} 
+              canEdit={false} 
+            />
+          </div>
+        </div>
+      )}
+
+      {/* User Profile Modal */}
+      {selectedProfile && (
+        <UserProfileModal user={selectedProfile} onClose={() => setSelectedProfile(null)} />
+      )}
     </div>
   );
 };

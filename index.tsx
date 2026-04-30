@@ -1,6 +1,17 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { registerSW } from 'virtual:pwa-register';
+
+// Register Service Worker for offline support
+const updateSW = registerSW({
+  onNeedRefresh() {
+    // Optional: Show a prompt to the user to refresh the page
+  },
+  onOfflineReady() {
+    console.log('App is ready to work offline');
+  },
+});
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

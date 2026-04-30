@@ -66,7 +66,7 @@ service cloud.firestore {
     // ===============================================================
     
     function isAuthenticated() {
-      return request.auth != null;
+      return request.auth != null && (request.auth.token.email_verified == true || (request.auth.token.email != null && request.auth.token.email.lower() == "backend@lifesync.local"));
     }
 
     function isOwner(userId) {
@@ -84,14 +84,45 @@ service cloud.firestore {
           request.auth.token.email.lower() == "backend@lifesync.local"));
     }
 
-    function isEditor() {
+    function isStaff() {
       return isAuthenticated() && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'editor';
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['editor', 'volunteer', 'president', 'secretary', 'media'];
+    }
+
+    function isEditor() {
+      // Maintaining backward compatibility for isEditor, but mapping it to isStaff logic for all functional checks
+      return isStaff();
     }
 
     function isAtLeastEditor() {
-      return isAdmin() || isEditor();
+      return isAdmin() || isEditor() || isPresident() || isSecretary() || isMedia();
+    }
+
+    function isPresident() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'president';
+    }
+
+    function isSecretary() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'secretary';
+    }
+
+    function isMedia() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'media';
+    }
+
+    function canManageUsers() {
+      return isAdmin() || isPresident();
+    }
+
+    function canManageRequests() {
+      return isAdmin() || isPresident() || isSecretary();
     }
 
     function hasOnlyAllowedFields(fields) {
@@ -107,7 +138,7 @@ service cloud.firestore {
              hasOnlyAllowedFields(['email', 'displayName', 'role', 'uid', 'points', 'donorsAdded', 'pointsFromAdding', 'pointsFromOwnDonors', 'pointsFromOtherDonors', 'pointsFromConvinced', 'phone']) &&
              data.email is string && isValidEmail(data.email) &&
              data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
-             data.role in ['admin', 'editor', 'user'] &&
+             data.role in ['admin', 'president', 'secretary', 'media', 'volunteer', 'editor', 'user'] &&
              (!('phone' in data) || (data.phone is string && data.phone.size() >= 10 && data.phone.size() <= 15)) &&
              (!('points' in data) || (data.points is number && data.points >= 0)) &&
              (!('donorsAdded' in data) || (data.donorsAdded is number && data.donorsAdded >= 0)) &&
@@ -168,7 +199,7 @@ service cloud.firestore {
 
     function isDonationUpdate() {
       let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
-      return affectedKeys.hasOnly(['lastDonationDate', 'totalDonations', 'isAvailable']) &&
+      return affectedKeys.hasOnly(['lastDonationDate', 'totalDonations', 'isAvailable', 'followUp3DayStatus', 'followUp3DayNextReminder', 'followUp7DayStatus', 'followUp7DayNextReminder']) &&
              request.resource.data.totalDonations == resource.data.totalDonations + 1 &&
              request.resource.data.lastDonationDate is string &&
              request.resource.data.lastDonationDate.size() < 50 &&
@@ -225,20 +256,20 @@ service cloud.firestore {
     }
 
     match /callRecords/{recordId} {
-      allow read: if isAdmin();
+      allow read: if canManageUsers();
       allow create: if isAuthenticated() && isValidCallRecord(request.resource.data);
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow update: if canManageUsers();
+      allow delete: if canManageUsers();
     }
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAtLeastEditor();
       allow create: if (isOwner(userId) && isValidUser(request.resource.data, userId) && request.resource.data.role == 'user') || 
-                     (isAdmin() && isValidUser(request.resource.data, userId));
+                     (canManageUsers() && isValidUser(request.resource.data, userId));
       allow update: if (isOwner(userId) && isValidUser(request.resource.data, userId) && request.resource.data.role == resource.data.role && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['points'])) || 
-                     (isAdmin() && isValidUser(request.resource.data, userId)) || 
+                     (canManageUsers() && isValidUser(request.resource.data, userId)) || 
                      (isAuthenticated() && isPointUpdate());
-      allow delete: if isAdmin();
+      allow delete: if canManageUsers();
     }
 
     function isConvinceUpdate() {
@@ -260,22 +291,22 @@ service cloud.firestore {
     match /donors/{donorId} {
       allow read: if isAuthenticated(); 
       allow create: if isAuthenticated() && isValidDonor(request.resource.data);
-      allow update: if isAdmin() || (isAuthenticated() && (isDonationUpdate() || isConvinceUpdate() || isRefusalUpdate()));
-      allow delete: if isAdmin();
+      allow update: if canManageUsers() || (isAuthenticated() && (isDonationUpdate() || isConvinceUpdate() || isRefusalUpdate()));
+      allow delete: if canManageUsers();
     }
 
     match /requests/{requestId} {
-      allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.userUid);
+      allow read: if canManageRequests() || (isAuthenticated() && request.auth.uid == resource.data.userUid);
       allow create: if isAuthenticated() && isValidRequest(request.resource.data);
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow update: if canManageRequests();
+      allow delete: if canManageRequests();
     }
 
     match /logs/{logId} {
-      allow read: if isAtLeastEditor();
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isValidLog(request.resource.data);
       allow update: if false;
-      allow delete: if isAdmin();
+      allow delete: if canManageUsers();
     }
 
     function isValidFacebookRequest(data) {
@@ -298,6 +329,20 @@ service cloud.firestore {
 
     match /settings/{settingId} {
       allow read: if isAtLeastEditor();
+      allow write: if isAdmin();
+    }
+
+    match /poster_submissions/{subId} {
+      allow read, update, delete: if isAtLeastEditor();
+      allow create: if isAuthenticated();
+    }
+
+    match /otps/{email} {
+      allow read, write: if isAdmin();
+    }
+
+    match /emergencies/{emergencyId} {
+      allow read: if true; // Allow everyone to read emergency contacts
       allow write: if isAdmin();
     }
 

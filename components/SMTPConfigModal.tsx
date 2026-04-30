@@ -17,6 +17,7 @@ const SMTPConfigModal: React.FC<SMTPConfigModalProps> = ({ onClose }) => {
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Password protection states (using the same password as SIP for simplicity or a different one)
@@ -61,6 +62,36 @@ const SMTPConfigModal: React.FC<SMTPConfigModalProps> = ({ onClose }) => {
     }
   };
 
+  const handleTestConnection = async () => {
+    if (!host || !port || !user || !pass) {
+      setMessage({ text: 'Please fill in all details to test.', type: 'error' });
+      return;
+    }
+
+    setIsTesting(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch('/api/test-smtp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host, port, user, pass, secure })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setMessage({ text: 'SMTP connection successful!', type: 'success' });
+      } else {
+        setMessage({ text: data.error || 'SMTP connection failed.', type: 'error' });
+      }
+    } catch (error) {
+      setMessage({ text: 'Error testing connection. Please try again.', type: 'error' });
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -78,22 +109,22 @@ const SMTPConfigModal: React.FC<SMTPConfigModalProps> = ({ onClose }) => {
         updatedAt: new Date().toISOString()
       });
       
-      setMessage({ text: 'SMTP কনফিগারেশন সফলভাবে সেভ হয়েছে!', type: 'success' });
+      setMessage({ text: 'SMTP configuration saved successfully!', type: 'success' });
       setTimeout(() => onClose(), 2000);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'settings/smtpConfig');
-      setMessage({ text: 'সেভ করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।', type: 'error' });
+      setMessage({ text: 'Error saving configuration. Please try again.', type: 'error' });
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-white dark:bg-slate-950 z-[70] flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+    <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-950 transition-colors duration-300">
       <div className="bg-emerald-900 dark:bg-slate-900 p-6 text-white flex justify-between items-center sticky top-0 z-10 shadow-lg">
         <h2 className="text-2xl font-bold flex items-center gap-3">
           <Mail size={28} className="text-emerald-400" />
-          SMTP ইমেইল কনফিগারেশন
+          SMTP Email Configuration
         </h2>
         <button 
           onClick={onClose} 
@@ -111,13 +142,13 @@ const SMTPConfigModal: React.FC<SMTPConfigModalProps> = ({ onClose }) => {
                 <Shield size={48} className="text-emerald-600 dark:text-emerald-400" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-2xl font-bold text-slate-800 dark:text-white">অ্যাক্সেস ভেরিফিকেশন</h3>
-                <p className="text-slate-500 dark:text-slate-400">SMTP সেটিংস পরিবর্তন করার জন্য পাসওয়ার্ড দিন</p>
+                <h3 className="text-2xl font-bold text-slate-800 dark:text-white">Access Verification</h3>
+                <p className="text-slate-500 dark:text-slate-400">Enter password to change SMTP settings</p>
               </div>
 
               <form onSubmit={handlePasswordSubmit} className="space-y-6 max-w-sm mx-auto">
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block text-left">পাসওয়ার্ড</label>
+                  <label className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block text-left">Password</label>
                   <input
                     type="password"
                     autoFocus
@@ -130,7 +161,7 @@ const SMTPConfigModal: React.FC<SMTPConfigModalProps> = ({ onClose }) => {
                     placeholder="••••••••"
                   />
                   {passwordError && (
-                    <p className="text-sm text-red-500 font-bold mt-2">ভুল পাসওয়ার্ড! আবার চেষ্টা করুন।</p>
+                    <p className="text-sm text-red-500 font-bold mt-2">Incorrect password! Try again.</p>
                   )}
                 </div>
 
@@ -138,14 +169,14 @@ const SMTPConfigModal: React.FC<SMTPConfigModalProps> = ({ onClose }) => {
                   type="submit"
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-emerald-200 dark:shadow-none transition-all transform hover:scale-[1.02] active:scale-95"
                 >
-                  ভেরিফাই করুন
+                  Verify
                 </button>
               </form>
             </div>
           ) : loading ? (
             <div className="flex flex-col items-center justify-center py-20 space-y-4">
               <Loader2 className="animate-spin text-emerald-600" size={48} />
-              <p className="text-slate-500 font-medium">লোড হচ্ছে...</p>
+              <p className="text-slate-500 font-medium">Loading...</p>
             </div>
           ) : (
             <form onSubmit={handleSave} className="bg-white dark:bg-slate-900 rounded-3xl p-8 md:p-12 shadow-xl border border-slate-100 dark:border-slate-800 space-y-8">
@@ -236,14 +267,24 @@ const SMTPConfigModal: React.FC<SMTPConfigModalProps> = ({ onClose }) => {
                 </div>
               </div>
 
-              <div className="pt-6">
+              <div className="pt-6 flex flex-col sm:flex-row gap-4">
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={isTesting || saving}
+                  className="flex-1 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold py-5 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-70 text-lg sm:text-xl transform hover:scale-[1.01] active:scale-95"
+                >
+                  {isTesting ? <Loader2 className="animate-spin" size={28} /> : <Server size={28} />}
+                  {isTesting ? 'Testing...' : 'Test Connection'}
+                </button>
+
                 <button
                   type="submit"
-                  disabled={saving}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-5 rounded-2xl shadow-2xl shadow-emerald-200 dark:shadow-none transition-all flex items-center justify-center gap-3 disabled:opacity-70 text-xl transform hover:scale-[1.01] active:scale-95"
+                  disabled={saving || isTesting}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-5 rounded-2xl shadow-2xl shadow-emerald-200 dark:shadow-none transition-all flex items-center justify-center gap-3 disabled:opacity-70 text-lg sm:text-xl transform hover:scale-[1.01] active:scale-95"
                 >
                   {saving ? <Loader2 className="animate-spin" size={28} /> : <Save size={28} />}
-                  {saving ? 'সেভ হচ্ছে...' : 'সেভ করুন'}
+                  {saving ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </form>

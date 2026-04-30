@@ -47,7 +47,8 @@ export interface UserProfile {
   email: string;
   displayName: string;
   phone?: string;
-  role: 'admin' | 'editor' | 'user';
+  photoUrl?: string;
+  role: 'admin' | 'president' | 'secretary' | 'media' | 'volunteer' | 'editor' | 'user';
   uid: string;
   points?: number; // Total points
   pointsFromAdding?: number; // 20 points per donor
@@ -83,4 +84,14 @@ export interface ActivityLog {
   userUid: string;
   timestamp: string;
   details?: string;
+}
+
+export interface PosterSubmission {
+  id?: string;
+  posterUrl: string;
+  submittedByUid: string;
+  submittedByName: string;
+  donorName: string;
+  status: 'pending' | 'approved' | 'rejected';
+  timestamp: string;
 }
