@@ -95,3 +95,15 @@ export interface PosterSubmission {
   status: 'pending' | 'approved' | 'rejected';
   timestamp: string;
 }
+
+export interface SOSRequest {
+  id?: string;
+  patientName: string;
+  bloodGroup: string;
+  location: string;
+  phone: string;
+  details: string;
+  status: 'active' | 'resolved';
+  createdAt: string;
+  submittedByUid?: string;
+}

@@ -283,7 +283,7 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, onClose }) => {
                   <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-30">
                     {(() => {
                       const userRoleStr = userProfile?.role || 'user';
-                      if (userRoleStr === 'user' || userRoleStr === 'volunteer' || userRoleStr === 'blood_donor' || userRoleStr === '') return null; // Hide 'User' texts next to users
+                      if (userRoleStr === 'user' || userRoleStr === 'volunteer') return null; // Hide 'User' texts next to users
                       const roleBadge = getRoleBadgeDefinition(userRoleStr);
                       return (
                         <div className={`flex items-center gap-1.5 px-4 py-1.5 ${roleBadge.color.split(' ')[0]} ${roleBadge.color.includes('text') ? roleBadge.color.split(' ').find(c => c.startsWith('text-')) : 'text-white'} text-xs font-black uppercase tracking-[0.2em] rounded-full shadow-lg border-2 border-white dark:border-slate-800 whitespace-nowrap`}>

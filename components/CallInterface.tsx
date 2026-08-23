@@ -1,10 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { PhoneOff, Mic, MicOff, Volume2, User, Phone, Check, X, Droplet, Loader2 } from 'lucide-react';
-import { collection, addDoc, getDoc, doc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, auth, storage, handleFirestoreError, OperationType } from '../firebase';
-
-import { audioService } from '../services/audioService';
+import React, { useState, useEffect } from 'react';
+import { PhoneOff, Mic, MicOff, Volume2, User, Phone, Check, X, Droplet } from 'lucide-react';
+import { doc } from 'firebase/firestore';
 
 interface CallInterfaceProps {
   phoneNumber: string;
@@ -23,122 +19,40 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
   const [showPostCallPopup, setShowPostCallPopup] = useState(false);
   const [showRefusalInput, setShowRefusalInput] = useState(false);
   const [refusalReason, setRefusalReason] = useState('');
-  const [userData, setUserData] = useState<any | null>(null);
-  const [uploadPromise, setUploadPromise] = useState<Promise<void> | null>(null);
-  
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const streamRef = useRef<MediaStream | null>(null);
 
-  // Handle audio playback based on call status
+  // Handle global SIP status updates
   useEffect(() => {
-    if (status === 'calling' || status === 'ringing') {
-      audioService.playRingback();
-    } else if (status === 'ended') {
-      audioService.playHangup();
-    } else {
-      audioService.stopAll();
-    }
-
-    return () => {
-      audioService.stopAll();
-    };
-  }, [status]);
-
-  // Function to manually trigger audio if blocked
-  const handleUserInteraction = () => {
-    if (status === 'calling' || status === 'ringing') {
-      audioService.playRingback();
-    }
-  };
-
-  useEffect(() => {
-    // Fetch current user's display name
-    if (auth.currentUser) {
-      getDoc(doc(db, 'users', auth.currentUser.uid)).then(snap => {
-        if (snap.exists()) {
-          setUserData(snap.data());
+    // @ts-ignore
+    window.updateSipStatus = (newStatus: string) => {
+      if (['calling', 'ringing', 'connected', 'disconnected'].includes(newStatus)) {
+        if (newStatus === 'disconnected') {
+          setStatus('ended');
+          setTimeout(() => setShowPostCallPopup(true), 1000);
+        } else {
+          setStatus(newStatus as any);
         }
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    // Simulate call progression if not on Android
-    // @ts-ignore
-    const isAndroid = !!(window.Android && window.Android.makeSipCall);
+      }
+    };
     
-    let ringTimer: NodeJS.Timeout;
-    let connectTimer: NodeJS.Timeout;
-
-    if (!isAndroid) {
-      ringTimer = setTimeout(() => setStatus('ringing'), 1500);
-      connectTimer = setTimeout(() => setStatus('connected'), 4500);
-    }
-
-    // Expose status update function for Android app
-    // @ts-ignore
-    window.onCallStatusChanged = (newStatus: string) => {
-      if (newStatus === 'ringing') setStatus('ringing');
-      if (newStatus === 'connected') setStatus('connected');
-      if (newStatus === 'ended') handleEndCall();
-    };
-
     return () => {
-      if (ringTimer) clearTimeout(ringTimer);
-      if (connectTimer) clearTimeout(connectTimer);
       // @ts-ignore
-      delete window.onCallStatusChanged;
+      delete window.updateSipStatus;
     };
   }, []);
 
+  // Timer for call duration
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (status === 'connected') {
-      interval = setInterval(() => setDuration(d => d + 1), 1000);
-      startRecording();
-    } else if (status === 'ended') {
-      stopRecording();
+      interval = setInterval(() => {
+        setDuration(prev => prev + 1);
+      }, 1000);
     }
-    return () => {
-      clearInterval(interval);
-      if (status !== 'ended') stopRecording();
-    };
+    return () => clearInterval(interval);
   }, [status]);
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.start();
-      console.log("Recording started");
-    } catch (error) {
-      console.error("Error starting recording:", error);
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-      console.log("Recording stopped");
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-  };
-
-  const toggleMute = () => {
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
     // @ts-ignore
@@ -148,7 +62,8 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
     }
   };
 
-  const toggleSpeaker = () => {
+  const toggleSpeaker = (e: React.MouseEvent) => {
+    e.stopPropagation();
     const nextSpeaker = !isSpeaker;
     setIsSpeaker(nextSpeaker);
     // @ts-ignore
@@ -158,66 +73,15 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
     }
   };
 
-  const handleEndCall = async () => {
-    if (status === 'ended') return;
-    
+  const handleEndCall = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setStatus('ended');
-    stopRecording();
-    
     // @ts-ignore
     if (window.Android && window.Android.endSipCall) {
       // @ts-ignore
       window.Android.endSipCall();
     }
-
-    // Save a call record if the call was connected and lasted more than 0 seconds
-    if (duration > 0 && auth.currentUser) {
-      const uploadTask = (async () => {
-        try {
-          let audioUrl = '';
-          let storagePath = '';
-
-          if (audioChunksRef.current.length > 0) {
-            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-            const fileName = `calls/${auth.currentUser.uid}/${Date.now()}.webm`;
-            const storageRef = ref(storage, fileName);
-            
-            const uploadResult = await uploadBytes(storageRef, audioBlob);
-            audioUrl = await getDownloadURL(uploadResult.ref);
-            storagePath = fileName;
-          }
-
-          const callerName = userData?.displayName || auth.currentUser.displayName || 'Unknown User';
-          
-          await addDoc(collection(db, 'callRecords'), {
-            callerUid: auth.currentUser.uid,
-            callerName: callerName,
-            donorPhone: phoneNumber,
-            donorName: donorName,
-            audioUrl: audioUrl || 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Fallback if recording failed
-            storagePath: storagePath || 'mock/path/record.mp3',
-            timestamp: new Date().toISOString(),
-            duration: duration
-          });
-        } catch (error) {
-          console.error("Error saving call record:", error);
-          handleFirestoreError(error, OperationType.CREATE, 'callRecords');
-        }
-      })();
-      
-      setUploadPromise(uploadTask);
-
-      // Immediately show post-call popup or end call
-      if (alreadyAgreed) {
-        // Wait for upload if it's already agreed and we're ending immediately
-        await uploadTask;
-        onEndCall();
-      } else {
-        setShowPostCallPopup(true);
-      }
-    } else {
-      setTimeout(() => onEndCall(), 1000);
-    }
+    setTimeout(() => setShowPostCallPopup(true), 1000);
   };
 
   const formatTime = (seconds: number) => {
@@ -227,10 +91,7 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
   };
 
   return (
-    <div 
-      onClick={handleUserInteraction}
-      className="fixed inset-0 z-[200] bg-slate-900 flex flex-col items-center justify-between py-12 animate-in fade-in zoom-in-95 duration-300"
-    >
+    <div className="fixed inset-0 z-[99999] bg-slate-900 flex flex-col items-center justify-between py-12 animate-in fade-in zoom-in-95 duration-300">
       {/* Background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className={`absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full blur-3xl transition-colors duration-1000 ${
@@ -282,6 +143,7 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
                 {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
                 <span className="text-[10px] mt-1 font-bold uppercase tracking-tighter">{isMuted ? 'Unmute' : 'Mute'}</span>
               </button>
+
               <button 
                 onClick={toggleSpeaker}
                 className={`w-16 h-16 rounded-full flex flex-col items-center justify-center transition-all duration-300 ${isSpeaker ? 'bg-white text-slate-900 scale-110 shadow-lg shadow-white/20' : 'bg-slate-800 text-white hover:bg-slate-700'}`}
@@ -311,17 +173,18 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
                 {formatTime(duration)}
               </div>
             </div>
+            
             <div className="space-y-2">
               <h3 className="text-2xl font-bold text-gray-900">Willing to donate blood?</h3>
               <p className="text-gray-600 text-sm leading-relaxed">
-                <span className="font-bold text-emerald-600">{userData?.displayName || auth.currentUser?.displayName || 'User'}</span>, has the donor agreed to donate blood? If you are a volunteer, you will receive 5 points.
+                Has the donor agreed to donate blood?
               </p>
             </div>
+
             <div className="flex flex-col gap-3 pt-2">
               <button 
                 onClick={async () => {
                   onDonorAgreed?.();
-                  if (uploadPromise) await uploadPromise;
                   onEndCall();
                 }}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-emerald-200 transition-all active:scale-95 flex items-center justify-center gap-2"
@@ -329,12 +192,20 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
                 <Check size={20} />
                 Yes, agreed
               </button>
+              
               <button 
                 onClick={() => setShowRefusalInput(true)}
                 className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-4 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2"
               >
                 <X size={20} />
                 No, did not agree
+              </button>
+
+              <button 
+                onClick={onEndCall}
+                className="w-full mt-2 text-slate-400 hover:text-slate-600 font-bold py-3 transition-colors text-sm"
+              >
+                Cancel / Did not answer
               </button>
             </div>
           </div>
@@ -348,24 +219,26 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
             <div className="bg-red-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto text-red-600">
               <X size={40} />
             </div>
+            
             <div className="space-y-2">
               <h3 className="text-2xl font-bold text-gray-900">Reason for refusal</h3>
               <p className="text-gray-600">
                 Briefly write why the donor did not agree.
               </p>
             </div>
+            
             <textarea
               value={refusalReason}
               onChange={(e) => setRefusalReason(e.target.value)}
               placeholder="Write the reason..."
               className="w-full p-4 border-2 border-gray-100 rounded-2xl focus:border-emerald-500 focus:outline-none transition-all resize-none h-32"
             />
+            
             <div className="flex flex-col gap-3">
               <button 
                 onClick={async () => {
                   if (refusalReason.trim()) {
                     onDonorRefused?.(refusalReason.trim());
-                    if (uploadPromise) await uploadPromise;
                     onEndCall();
                   }
                 }}
@@ -373,6 +246,12 @@ const CallInterface: React.FC<CallInterfaceProps> = ({ phoneNumber, donorName, a
                 className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-200 transition-all active:scale-95"
               >
                 Submit
+              </button>
+              <button 
+                onClick={() => setShowRefusalInput(false)}
+                className="w-full text-slate-500 font-bold py-3"
+              >
+                Back
               </button>
             </div>
           </div>

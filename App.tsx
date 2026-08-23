@@ -11,9 +11,11 @@ import ErrorBoundary from './components/ErrorBoundary';
 import RequestModal from './components/RequestModal';
 import Profile from './components/Profile';
 import RecordDonationModal from './components/RecordDonationModal';
+import { LottieLoader } from './components/LottieAnimations';
 import AddDonorModal from './components/AddDonorModal';
 import CallInterface from './components/CallInterface';
 import SOSNotification from './components/SOSNotification';
+import SOSIndicator from './components/SOSIndicator';
 import { logActivity } from './services/logService';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, signOut, User, sendEmailVerification } from 'firebase/auth';
@@ -178,29 +180,22 @@ const App: React.FC = () => {
       setActiveView('auth');
       return;
     }
-
     if (!force) {
-      // Check if donor is already convinced by someone else
       if (donor.agreedToDonate && donor.convincedByUid && donor.convincedByUid !== currentUser.uid) {
         setCallWarning({ donor, callerName: donor.convincedByName || 'Another editor' });
         return;
       }
-
-      // Check for recent refusal (within 7 days)
       if (donor.lastRefusalDate) {
         const refusalDate = new Date(donor.lastRefusalDate);
         const now = new Date();
         const diffTime = Math.abs(now.getTime() - refusalDate.getTime());
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
         if (diffDays <= 7) {
           setRefusalWarning({ donor, reason: donor.lastRefusalReason || 'No reason specified', date: donor.lastRefusalDate });
           return;
         }
       }
     }
-
-    // Otherwise, proceed with call
     // @ts-ignore
     if (window.Android && window.Android.makeSipCall) {
       const callerUid = currentUser.uid;
@@ -601,6 +596,9 @@ const App: React.FC = () => {
                     <span>Offline</span>
                   </div>
                 )}
+
+                <SOSIndicator />
+
                 {/* Dark Mode Toggle */}
                 <button 
                   onClick={toggleDarkMode}
@@ -790,24 +788,9 @@ const App: React.FC = () => {
         <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-slate-950 transition-colors duration-300 relative">
           <div className="relative mb-8">
             <div className="absolute inset-0 rounded-full blur-xl bg-emerald-300/30 dark:bg-emerald-400/20 animate-pulse"></div>
-            <img src="/logo.png" alt="Shishir Logo" className="h-28 w-28 object-contain drop-shadow-2xl relative z-10 animate-pulse transition-all duration-1000 mx-auto" />
-            <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-48 h-8 flex items-center justify-center opacity-70">
-              <svg width="120" height="20" viewBox="0 0 120 20" className="w-full h-full overflow-hidden">
-                <polyline 
-                  points="0,10 40,10 45,5 50,20 55,0 60,15 65,10 120,10" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  className="text-emerald-500 drop-shadow-md"
-                  style={{
-                    strokeDasharray: 200,
-                    strokeDashoffset: 200,
-                    animation: "dash 2s linear infinite"
-                  }}
-                />
-              </svg>
+            <img src="/logo.png" alt="Shishir Logo" className="h-28 w-28 object-contain drop-shadow-2xl relative z-10 mx-auto" />
+            <div className="absolute -bottom-16 left-1/2 -translate-x-1/2 w-48 flex items-center justify-center opacity-90">
+              <LottieLoader size={80} />
             </div>
           </div>
           <motion.div
@@ -988,7 +971,7 @@ const App: React.FC = () => {
 
                 {isLoading ? (
                     <div className="flex flex-col items-center justify-center py-20">
-                        <Loader2 className="animate-spin text-emerald-600 mb-4" size={48} />
+                        <LottieLoader size={80} className="mb-4" />
                         <p className="text-emerald-800 font-medium">Loading data...</p>
                     </div>
                 ) : filteredDonors.length > 0 ? (

@@ -120,7 +120,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
           
           <div className="flex flex-wrap justify-center gap-2 items-center mb-6">
             {(() => {
-              if (user.role === 'user' || user.role === 'blood_donor' || !user.role || user.role === '') return null;
+              if (user.role === 'user' || !user.role) return null;
               const roleBadge = getRoleBadgeDefinition(user.role);
               return (
                 <span className={`flex items-center gap-1.5 px-3 py-1 ${roleBadge.color.split(' ')[0]} ${roleBadge.color.includes('text') ? roleBadge.color.split(' ').find(c => c.startsWith('text-')) : 'text-white'} text-[10px] font-black uppercase tracking-widest rounded-lg`}>

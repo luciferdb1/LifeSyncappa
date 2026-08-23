@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
 import { X, Check } from 'lucide-react';
 import { motion } from 'motion/react';
-import getCroppedImg from '../lib/cropImage';
+import { getCroppedImg } from '../lib/cropImage';
 
 interface ImageCropperProps {
   imageSrc: string;
@@ -24,9 +24,13 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onCropComplete, o
     if (!croppedAreaPixels) return;
     try {
       setIsProcessing(true);
-      const croppedImage = await getCroppedImg(imageSrc, croppedAreaPixels, 0);
+      const croppedImage = await getCroppedImg(imageSrc, croppedAreaPixels);
       if (croppedImage) {
-        onCropComplete(croppedImage);
+        // Convert base64 to File
+        const res = await fetch(croppedImage);
+        const blob = await res.blob();
+        const file = new File([blob], "cropped.jpg", { type: "image/jpeg" });
+        onCropComplete(file);
       }
     } catch (e) {
       console.error(e);

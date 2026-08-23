@@ -1,4 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from "react";
+import Cropper from "react-easy-crop";
+import { getCroppedImg } from "../lib/cropImage";
 import { X, Calendar, Loader2, Droplet, Award, Upload, Download, Image as ImageIcon, Facebook, CheckCircle2 } from 'lucide-react';
 import { Donor } from '../types';
 import { db, auth, storage, handleFirestoreError, OperationType } from '../firebase';
@@ -24,6 +26,10 @@ const RecordDonationModal: React.FC<RecordDonationModalProps> = ({ donor, userRo
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
   const [postedFacebookId, setPostedFacebookId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+  const [isCropping, setIsCropping] = useState(false);
 
   const handlePostToFacebook = async () => {
     if (!posterUrl) return;
@@ -125,12 +131,29 @@ const RecordDonationModal: React.FC<RecordDonationModalProps> = ({ donor, userRo
       const reader = new FileReader();
       reader.onload = (event) => {
         setImagePreview(event.target?.result as string);
+        setIsCropping(true);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const generatePoster = async (file: File, donorName: string, bloodGroup: string, dateStr: string, totalDonations: number): Promise<string> => {
+  const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: any) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
+
+  const handleCropImage = async () => {
+    try {
+      if (!imagePreview || !croppedAreaPixels) return;
+      const croppedImage = await getCroppedImg(imagePreview, croppedAreaPixels);
+      setImagePreview(croppedImage);
+      setIsCropping(false);
+    } catch (e) {
+      console.error(e);
+      alert('Error cropping image');
+    }
+  };
+
+  const generatePoster = async (imageSrc: string, donorName: string, bloodGroup: string, dateStr: string, totalDonations: number): Promise<string> => {
     return new Promise((resolve, reject) => {
       const canvas = document.createElement('canvas');
       canvas.width = 1080;
@@ -248,82 +271,78 @@ const RecordDonationModal: React.FC<RecordDonationModalProps> = ({ donor, userRo
         ctx.fillText(formattedDate.trim(), rightX, 530);
 
         // 4. User Image (Bottom Left, Partially Cut Off)
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const userImg = new Image();
-          userImg.onload = () => {
-            const imgRadius = 550; 
-            const imgX = 280; 
-            const imgY = 1080; 
+        const userImg = new Image();
+        userImg.onload = () => {
+          const imgRadius = 550; 
+          const imgX = 280; 
+          const imgY = 1080; 
 
-            // Light background ring (Offset shadow)
-            ctx.beginPath();
-            ctx.arc(imgX + 30, imgY + 30, imgRadius + 15, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(5, 150, 105, 0.1)'; // Light emerald shadow
-            ctx.fill();
+          // Light background ring (Offset shadow)
+          ctx.beginPath();
+          ctx.arc(imgX + 30, imgY + 30, imgRadius + 15, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(5, 150, 105, 0.1)'; // Light emerald shadow
+          ctx.fill();
 
-            // Image clipping
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(imgX, imgY, imgRadius, 0, Math.PI * 2);
-            ctx.closePath();
-            ctx.clip();
+          // Image clipping
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(imgX, imgY, imgRadius, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
 
-            const scale = Math.max((imgRadius * 2) / userImg.width, (imgRadius * 2) / userImg.height);
-            const x = imgX - (userImg.width * scale) / 2;
-            const y = imgY - (userImg.height * scale) / 2;
-            ctx.drawImage(userImg, x, y, userImg.width * scale, userImg.height * scale);
-            ctx.restore();
+          const scale = Math.max((imgRadius * 2) / userImg.width, (imgRadius * 2) / userImg.height);
+          const x = imgX - (userImg.width * scale) / 2;
+          const y = imgY - (userImg.height * scale) / 2;
+          ctx.drawImage(userImg, x, y, userImg.width * scale, userImg.height * scale);
+          ctx.restore();
 
-            // Thick Green Border
-            ctx.beginPath();
-            ctx.arc(imgX, imgY, imgRadius, 0, Math.PI * 2);
-            ctx.lineWidth = 35;
-            ctx.strokeStyle = COLOR_GREEN;
-            ctx.stroke();
+          // Thick Green Border
+          ctx.beginPath();
+          ctx.arc(imgX, imgY, imgRadius, 0, Math.PI * 2);
+          ctx.lineWidth = 35;
+          ctx.strokeStyle = COLOR_GREEN;
+          ctx.stroke();
 
-            // 5. Blood Group Badge (Pill Design)
-            const badgeX = 880;
-            const badgeY = 1150;
-            const badgeWidth = 320;
-            const badgeHeight = 140;
-            const badgeRadius = 70;
-            const badgeStartX = badgeX - badgeWidth / 2;
-            const badgeStartY = badgeY - badgeHeight / 2;
+          // 5. Blood Group Badge (Pill Design)
+          const badgeX = 880;
+          const badgeY = 1150;
+          const badgeWidth = 320;
+          const badgeHeight = 140;
+          const badgeRadius = 70;
+          const badgeStartX = badgeX - badgeWidth / 2;
+          const badgeStartY = badgeY - badgeHeight / 2;
 
-            ctx.save();
-            ctx.shadowColor = 'rgba(0,0,0,0.2)';
-            ctx.shadowBlur = 15;
-            ctx.shadowOffsetY = 8;
-            
-            // Draw Pill (White background)
-            ctx.beginPath();
-            if (ctx.roundRect) {
-              ctx.roundRect(badgeStartX, badgeStartY, badgeWidth, badgeHeight, badgeRadius);
-            } else {
-              ctx.rect(badgeStartX, badgeStartY, badgeWidth, badgeHeight);
-            }
-            ctx.fillStyle = COLOR_WHITE;
-            ctx.fill();
-            
-            // Blue Border
-            ctx.lineWidth = 12;
-            ctx.strokeStyle = '#0056b3'; // Deep blue border
-            ctx.stroke();
-            ctx.restore();
+          ctx.save();
+          ctx.shadowColor = 'rgba(0,0,0,0.2)';
+          ctx.shadowBlur = 15;
+          ctx.shadowOffsetY = 8;
+          
+          // Draw Pill (White background)
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(badgeStartX, badgeStartY, badgeWidth, badgeHeight, badgeRadius);
+          } else {
+            ctx.rect(badgeStartX, badgeStartY, badgeWidth, badgeHeight);
+          }
+          ctx.fillStyle = COLOR_WHITE;
+          ctx.fill();
+          
+          // Blue Border
+          ctx.lineWidth = 12;
+          ctx.strokeStyle = '#0056b3'; // Deep blue border
+          ctx.stroke();
+          ctx.restore();
 
-            // Blood Group Text (Red)
-            ctx.fillStyle = COLOR_RED;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.font = '900 100px sans-serif'; // Extra bold and larger
-            ctx.fillText(formattedBloodGroup, badgeX, badgeY + 8);
+          // Blood Group Text (Red)
+          ctx.fillStyle = COLOR_RED;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.font = '900 100px sans-serif'; // Extra bold and larger
+          ctx.fillText(formattedBloodGroup, badgeX, badgeY + 8);
 
-            resolve(canvas.toDataURL('image/png'));
-          };
-          userImg.src = e.target?.result as string;
+          resolve(canvas.toDataURL('image/png'));
         };
-        reader.readAsDataURL(file);
+        userImg.src = imageSrc;
       };
 
       // Draw Logo
@@ -405,10 +424,10 @@ const RecordDonationModal: React.FC<RecordDonationModalProps> = ({ donor, userRo
         }
       }
 
-      if (imageFile) {
+      if (imagePreview) {
         setStep('generating');
         try {
-          const url = await generatePoster(imageFile, donor.name, donor.bloodGroup, date, (donor.totalDonations || 0) + 1);
+          const url = await generatePoster(imagePreview, donor.name, donor.bloodGroup, date, (donor.totalDonations || 0) + 1);
           setPosterUrl(url);
           setStep('result');
         } catch (err) {
@@ -458,7 +477,44 @@ const RecordDonationModal: React.FC<RecordDonationModalProps> = ({ donor, userRo
         <div className="flex-1 p-5 sm:p-8 overflow-y-auto overscroll-contain bg-slate-50/50 dark:bg-slate-900/50 transition-colors duration-300">
           <div className="max-w-2xl mx-auto">
             {step === 'form' && (
-              <form id="donation-form" onSubmit={handleSubmit} className="space-y-6">
+              isCropping && imagePreview ? (
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors duration-300 flex flex-col h-[500px]">
+                  <h4 className="text-xl font-black text-slate-900 dark:text-white mb-4">Adjust Photo</h4>
+                  <div className="relative flex-1 bg-black rounded-xl overflow-hidden mb-4">
+                    <Cropper
+                      image={imagePreview}
+                      crop={crop}
+                      zoom={zoom}
+                      aspect={1}
+                      onCropChange={setCrop}
+                      onZoomChange={setZoom}
+                      onCropComplete={onCropComplete}
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCropping(false);
+                        setImagePreview(null);
+                        setImageFile(null);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                      className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold py-3 rounded-2xl transition-colors uppercase tracking-widest text-xs"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCropImage}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-2xl transition-colors shadow-lg shadow-emerald-500/30 uppercase tracking-widest text-xs"
+                    >
+                      Save Crop
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <form id="donation-form" onSubmit={handleSubmit} className="space-y-6">
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors duration-300">
                   <div className="flex items-center gap-4 mb-8">
                     <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 border-2 border-emerald-100 dark:border-emerald-900/30">
@@ -536,6 +592,7 @@ const RecordDonationModal: React.FC<RecordDonationModalProps> = ({ donor, userRo
                   Record & Generate Poster
                 </button>
               </form>
+              )
             )}
 
             {step === 'generating' && (

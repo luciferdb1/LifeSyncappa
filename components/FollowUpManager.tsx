@@ -122,9 +122,7 @@ const FollowUpManager: React.FC<FollowUpManagerProps> = ({ onClose }) => {
           updates.followUp3DayNextReminder = '';
         } else {
           updates.followUp3DayStatus = 'failed';
-          const nextReminder = new Date();
-          nextReminder.setHours(nextReminder.getHours() + 1); // Remind after 1 hour
-          updates.followUp3DayNextReminder = nextReminder.toISOString();
+          updates.followUp3DayNextReminder = ''; // Keep in notification
         }
       } else {
         if (success) {
@@ -132,9 +130,7 @@ const FollowUpManager: React.FC<FollowUpManagerProps> = ({ onClose }) => {
           updates.followUp7DayNextReminder = '';
         } else {
           updates.followUp7DayStatus = 'failed';
-          const nextReminder = new Date();
-          nextReminder.setHours(nextReminder.getHours() + 1); // Remind after 1 hour
-          updates.followUp7DayNextReminder = nextReminder.toISOString();
+          updates.followUp7DayNextReminder = ''; // Keep in notification
         }
       }
       
@@ -408,9 +404,9 @@ const FollowUpManager: React.FC<FollowUpManagerProps> = ({ onClose }) => {
               <div className="w-10 h-10 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-2">
                 <PhoneCall size={20} />
               </div>
-              <h3 className="text-base font-bold text-slate-800 dark:text-white">Call Confirmation</h3>
+              <h3 className="text-base font-bold text-slate-800 dark:text-white">Communication Status</h3>
               <p className="text-slate-600 dark:text-slate-400 mt-1 text-xs">
-                Were you able to contact <strong>{selectedDonor.donor.name}</strong> ({selectedDonor.donor.phone})?
+                Was the communication with <strong>{selectedDonor.donor.name}</strong> successful?
               </p>
             </div>
             
@@ -421,16 +417,16 @@ const FollowUpManager: React.FC<FollowUpManagerProps> = ({ onClose }) => {
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-sm shadow-emerald-200 dark:shadow-none transition-all flex items-center justify-center gap-2 text-xs"
               >
                 {actionLoading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-                Yes, talked
+                Yes, successful
               </button>
               
               <button
                 onClick={() => handleCallResult(false)}
                 disabled={actionLoading}
-                className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold shadow-sm shadow-amber-200 dark:shadow-none transition-all flex items-center justify-center gap-2 text-xs"
+                className="w-full py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold shadow-sm shadow-rose-200 dark:shadow-none transition-all flex items-center justify-center gap-2 text-xs"
               >
-                {actionLoading ? <Loader2 size={16} className="animate-spin" /> : <Clock size={16} />}
-                No, remind me after 1 hour
+                {actionLoading ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
+                No, did not reach
               </button>
               
               <button

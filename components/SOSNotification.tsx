@@ -138,18 +138,8 @@ const SOSNotification: React.FC<SOSNotificationProps> = ({ userRole, followUpCou
 
   return (
     <>
-      {canApprove && (
-        <button 
-          onClick={triggerTest}
-          className="fixed bottom-4 left-4 z-50 bg-red-600 hover:bg-red-700 text-white p-2 rounded-full shadow-lg opacity-50 hover:opacity-100 transition-opacity flex items-center justify-center sm:px-4 sm:rounded-xl"
-          title="Test SOS Notification"
-        >
-          <Activity size={16} />
-          <span className="hidden sm:inline ml-2 text-xs font-bold uppercase tracking-wider">Test SOS</span>
-        </button>
-      )}
 
-      <div className="fixed top-20 right-4 z-[9999] flex flex-col gap-4 pointer-events-none w-full max-w-sm px-4 sm:px-0">
+      <div className="fixed top-20 right-4 z-[999999] flex flex-col gap-4 pointer-events-none w-full max-w-sm px-4 sm:px-0">
         <AnimatePresence>
           {notifications.map((notif) => (
             <motion.div

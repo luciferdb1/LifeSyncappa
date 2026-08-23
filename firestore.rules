@@ -126,7 +126,7 @@ service cloud.firestore {
     }
 
     function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
+      return fields.hasAll(request.resource.data.keys());
     }
 
     function isValidEmail(email) {
@@ -210,33 +210,22 @@ service cloud.firestore {
       let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
       let currentPoints = ('points' in resource.data) ? resource.data.points : 0;
       let currentDonorsAdded = ('donorsAdded' in resource.data) ? resource.data.donorsAdded : 0;
-      let currentPointsFromAdding = ('pointsFromAdding' in resource.data) ? resource.data.pointsFromAdding : 0;
-      let currentPointsFromOwnDonors = ('pointsFromOwnDonors' in resource.data) ? resource.data.pointsFromOwnDonors : 0;
-      let currentPointsFromOtherDonors = ('pointsFromOtherDonors' in resource.data) ? resource.data.pointsFromOtherDonors : 0;
-      let currentPointsFromConvinced = ('pointsFromConvinced' in resource.data) ? resource.data.pointsFromConvinced : 0;
       
-      // 20 points for adding a donor
-      let isAddingDonor = affectedKeys.hasOnly(['points', 'donorsAdded', 'pointsFromAdding']) && 
-                          request.resource.data.points == currentPoints + 20 && 
-                          request.resource.data.donorsAdded == currentDonorsAdded + 1 &&
-                          request.resource.data.pointsFromAdding == currentPointsFromAdding + 20;
-      
-      // 10 points for own donor donation
-      let isOwnDonorDonation = affectedKeys.hasOnly(['points', 'pointsFromOwnDonors']) && 
-                               request.resource.data.points == currentPoints + 10 &&
-                               request.resource.data.pointsFromOwnDonors == currentPointsFromOwnDonors + 10;
-                               
-      // 5 points for other donor donation
-      let isOtherDonorDonation = affectedKeys.hasOnly(['points', 'pointsFromOtherDonors']) && 
-                                 request.resource.data.points == currentPoints + 5 &&
-                                 request.resource.data.pointsFromOtherDonors == currentPointsFromOtherDonors + 5;
-                                 
-      // 5 points for convincing via call
-      let isConvincingViaCall = affectedKeys.hasOnly(['points', 'pointsFromConvinced']) && 
-                                request.resource.data.points == currentPoints + 5 &&
-                                request.resource.data.pointsFromConvinced == currentPointsFromConvinced + 5;
-      
-      return isAddingDonor || isOwnDonorDonation || isOtherDonorDonation || isConvincingViaCall;
+      return (affectedKeys.hasOnly(['points', 'donorsAdded', 'pointsFromAdding']) && 
+               request.resource.data.points == currentPoints + 20 && 
+               request.resource.data.donorsAdded == currentDonorsAdded + 1 &&
+               request.resource.data.pointsFromAdding == (('pointsFromAdding' in resource.data) ? resource.data.pointsFromAdding : 0) + 20) ||
+             (affectedKeys.hasOnly(['donorsAdded']) &&
+               request.resource.data.donorsAdded == currentDonorsAdded + 1) ||
+             (affectedKeys.hasOnly(['points', 'pointsFromOwnDonors']) && 
+               request.resource.data.points == currentPoints + 10 &&
+               request.resource.data.pointsFromOwnDonors == (('pointsFromOwnDonors' in resource.data) ? resource.data.pointsFromOwnDonors : 0) + 10) ||
+             (affectedKeys.hasOnly(['points', 'pointsFromOtherDonors']) && 
+               request.resource.data.points == currentPoints + 5 &&
+               request.resource.data.pointsFromOtherDonors == (('pointsFromOtherDonors' in resource.data) ? resource.data.pointsFromOtherDonors : 0) + 5) ||
+             (affectedKeys.hasOnly(['points', 'pointsFromConvinced']) && 
+               request.resource.data.points == currentPoints + 5 &&
+               request.resource.data.pointsFromConvinced == (('pointsFromConvinced' in resource.data) ? resource.data.pointsFromConvinced : 0) + 5);
     }
 
     // ===============================================================
@@ -344,6 +333,13 @@ service cloud.firestore {
     match /emergencies/{emergencyId} {
       allow read: if true; // Allow everyone to read emergency contacts
       allow write: if isAdmin();
+    }
+
+    match /sos_requests/{requestId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if isAdmin();
     }
 
     match /webhookRawLogs/{logId} {
